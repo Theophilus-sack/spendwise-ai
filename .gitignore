@@ -1,0 +1,24 @@
+node_modules/
+.expo/
+dist/
+build/
+*.log
+.env
+.env.local
+.env.*.local
+bun.lockb
+*.tsbuildinfo
+
+# Supabase
+supabase/.branches
+supabase/.temp
+supabase/functions/.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp

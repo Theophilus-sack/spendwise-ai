@@ -1,0 +1,64 @@
+{
+  "expo": {
+    "name": "SpendWise AI",
+    "slug": "spendwise-ai",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "automatic",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#1A6B4A"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.spendwise.ai",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Used to scan receipts for automatic expense entry",
+        "NSFaceIDUsageDescription": "Used to unlock the app securely",
+        "NSPhotoLibraryUsageDescription": "Used to select receipt images"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#1A6B4A"
+      },
+      "package": "com.spendwise.ai",
+      "permissions": [
+        "CAMERA",
+        "USE_BIOMETRIC",
+        "USE_FINGERPRINT",
+        "RECEIVE_BOOT_COMPLETED",
+        "SCHEDULE_EXACT_ALARM",
+        "VIBRATE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-local-authentication",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#1A6B4A"
+        }
+      ],
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow SpendWise AI to access your camera to scan receipts."
+        }
+      ]
+    ],
+    "extra": {
+      "supabaseUrl": "",
+      "supabaseAnonKey": ""
+    }
+  }
+}
