@@ -40,7 +40,13 @@ export function ExpensesScreen() {
   const confirmDelete = (e: Expense) => {
     Alert.alert('Delete Expense', `Delete ${e.merchantName ?? e.description ?? getCategoryLabel(e.category)}?`, [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Delete', style: 'destructive', onPress: () => deleteExpense(e.id) },
+      {
+        text: 'Delete', style: 'destructive', onPress: () => {
+          deleteExpense(e.id).catch(err => {
+            Alert.alert('Sync failed', err instanceof Error ? err.message : 'Could not fully delete this expense. Please try again.');
+          });
+        },
+      },
     ]);
   };
 

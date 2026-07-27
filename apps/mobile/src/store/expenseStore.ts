@@ -19,6 +19,7 @@ interface ExpenseState {
   addExpense:    (userId: string, input: CreateExpenseInput) => Promise<Expense>;
   deleteExpense: (id: string) => Promise<void>;
   syncToCloud:   (userId: string) => Promise<void>;
+  reset:         () => void;
 
   // Computed selectors
   getThisMonthExpenses:  () => Expense[];
@@ -96,7 +97,10 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       description:     input.description,
       notes:           input.notes,
       date:            input.date,
-      timeOfDay:       input.timeOfDay,
+      // Defaults to the actual time of entry when the caller doesn't supply one
+      // (e.g. a backdated manual entry) — without this, spending-time analytics
+      // like the heatmap would never have any data to work with.
+      timeOfDay:       input.timeOfDay ?? now.slice(11, 16),
       isRecurring:     input.isRecurring ?? false,
       isSplit:         false,
       roundupAmount:   0,
@@ -123,7 +127,14 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   deleteExpense: async (id) => {
     await dbDeleteExpense(id);
     set(s => ({ expenses: s.expenses.filter(e => e.id !== id) }));
-    await supabase.from('expenses').delete().eq('id', id);
+
+    const { error } = await supabase.from('expenses').delete().eq('id', id);
+    if (error) {
+      // The local copy is already gone (offline-safe delete), but the caller
+      // needs to know the deletion didn't reach the server — otherwise the
+      // next background sync silently brings the "deleted" expense back.
+      throw new Error(`Deleted locally, but couldn't sync the deletion: ${error.message}`);
+    }
   },
 
   syncToCloud: async (userId) => {
@@ -144,6 +155,8 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       set({ syncing: false });
     }
   },
+
+  reset: () => set({ expenses: [], loading: false, syncing: false }),
 
   getThisMonthExpenses: () => {
     const monthStart = startOfMonthISO();

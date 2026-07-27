@@ -9,6 +9,7 @@ interface BudgetState {
   load:           (userId: string) => Promise<void>;
   upsertBudget:   (budget: Budget) => Promise<void>;
   deleteBudget:   (id: string) => Promise<void>;
+  reset:          () => void;
 }
 
 export const useBudgetStore = create<BudgetState>((set, get) => ({
@@ -49,6 +50,8 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     set(s => ({ budgets: s.budgets.filter(b => b.id !== id) }));
     await supabase.from('budgets').delete().eq('id', id);
   },
+
+  reset: () => set({ budgets: [], loading: false }),
 }));
 
 function remoteToBudget(r: Record<string, unknown>): Budget {

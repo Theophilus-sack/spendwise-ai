@@ -64,7 +64,10 @@ export function OnboardingWizard() {
       const incomeRange = INCOME_RANGES.find(r => r.value === data.incomeRange);
       const monthlyIncome = incomeRange?.midpoint ?? 0;
 
-      // Generate AI suggested budgets based on income and personality
+      // Starter budget from income and spending personality — a fixed formula,
+      // not an AI call. Kept deterministic on purpose: budget math should be
+      // auditable and instant, not dependent on a network round-trip during
+      // account setup.
       const budgets = generateInitialBudgets(monthlyIncome, data.spendingPersonality ?? 'balanced');
 
       // Save profile
@@ -85,14 +88,14 @@ export function OnboardingWizard() {
 
       if (error) throw error;
 
-      // Save AI-suggested budgets (ignore if already exist)
+      // Save the starter budgets (ignore if already exist)
       for (const budget of budgets) {
         await supabase.from('budgets').upsert({
           user_id:      user.id,
           category:     budget.category,
           limit_amount: budget.limit,
           period:       'monthly',
-          ai_suggested: true,
+          ai_suggested: false,
         }, { onConflict: 'user_id,category,period' });
       }
 
@@ -259,13 +262,13 @@ export function OnboardingWizard() {
         {step === 6 && (
           <StepWrapper
             emoji="🎉" title="You're all set!"
-            subtitle="We've built your personalised budget and set up your AI advisor. Let's start tracking."
+            subtitle="We've built your starter budget from your income and habits. Let's start tracking."
           >
             <View style={styles.doneCard}>
-              <Text style={styles.doneText}>✅ Personalised budget created</Text>
-              <Text style={styles.doneText}>✅ AI advisor configured</Text>
-              <Text style={styles.doneText}>✅ Financial Discipline Score activated</Text>
-              <Text style={styles.doneText}>✅ Spending forecast ready</Text>
+              <Text style={styles.doneText}>✅ Starter budget created from your income</Text>
+              <Text style={styles.doneText}>✅ Your AI advisor is ready to chat</Text>
+              <Text style={styles.doneText}>✅ Financial Discipline Score will start tracking</Text>
+              <Text style={styles.doneText}>✅ Spending forecast ready once you log a few expenses</Text>
             </View>
           </StepWrapper>
         )}

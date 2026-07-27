@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import type { Session, User } from '@supabase/supabase-js';
 import { supabase } from '@/lib/supabase';
+import { dbClearAll } from '@/lib/database';
+import { resetAllUserStores } from './resetStores';
 import type { UserProfile } from '@spendwise/shared';
 
 interface AuthState {
@@ -21,12 +23,27 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   profile:  null,
   loading:  true,
 
-  setSession: (session) => set({ session, user: session?.user ?? null, loading: false }),
+  setSession: (session) => {
+    const newUserId  = session?.user?.id ?? null;
+    const prevUserId = get().user?.id ?? null;
+
+    // Defense in depth: if the active session's user id ever changes without
+    // going through signOut() (e.g. an unexpected token/session swap), wipe
+    // every per-user store rather than letting the previous account's data
+    // render under the new session for however long a fresh load takes.
+    if (prevUserId && newUserId && prevUserId !== newUserId) {
+      resetAllUserStores();
+    }
+
+    set({ session, user: session?.user ?? null, loading: false });
+  },
 
   setProfile: (profile) => set({ profile }),
 
   signOut: async () => {
     await supabase.auth.signOut();
+    resetAllUserStores();
+    await dbClearAll();
     set({ session: null, user: null, profile: null });
   },
 

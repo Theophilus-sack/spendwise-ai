@@ -1,17 +1,32 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
+import { authenticate, AuthError } from '../_shared/auth.ts';
+import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
+import { requireString, ValidationError } from '../_shared/validate.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
 
 const FDS_WEIGHTS = { budgetAdherence: 0.35, savingsRate: 0.30, consistency: 0.20, improvement: 0.15 };
+const clamp = (n: number, min = 0, max = 1) => Math.min(Math.max(n, min), max);
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
 
   try {
-    const { userId, weekStart } = await req.json();
+    const auth = await authenticate(req);
+    const body = await req.json();
+    const weekStart = requireString(body.weekStart, 10, 'weekStart');
+    if (!DATE_RE.test(weekStart)) throw new ValidationError('weekStart must be an ISO date (YYYY-MM-DD).');
+
+    // A real user can only ever compute their own score. Only the trusted
+    // weekly batch job (authenticated with the service-role key) may compute
+    // on behalf of an arbitrary userId, since it iterates over every user.
+    const userId: string = auth.isService ? requireString(body.userId, 100, 'userId') : auth.userId;
+
     const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    if (!auth.isService) await enforceRateLimit(supabase, userId, 'compute-fds', 10, 3600);
 
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekEnd.getDate() + 7);
@@ -34,28 +49,31 @@ serve(async (req) => {
       return acc;
     }, {});
     const categoriesOver = budgetList.filter((b: any) => (spendByCategory[b.category] ?? 0) > parseFloat(b.limit_amount) * (7/30));
-    const budgetAdherence = budgetList.length > 0 ? 1 - (categoriesOver.length / budgetList.length) : 1;
+    const budgetAdherence = clamp(budgetList.length > 0 ? 1 - (categoriesOver.length / budgetList.length) : 1);
 
     // Component 2: Savings Rate
-    const weeklyIncome     = (parseFloat(profile?.data?.monthly_income ?? 0) / 4.33);
-    const targetSavingsPct = (parseFloat(profile?.data?.savings_target_pct ?? 20)) / 100;
+    // `profile` is already the unwrapped row (destructured from `{ data: profile }` above) —
+    // reading `profile.data.*` here previously always resolved to undefined, silently
+    // zeroing weeklyIncome and therefore this entire component for every user.
+    const weeklyIncome     = (parseFloat(profile?.monthly_income ?? 0) / 4.33);
+    const targetSavingsPct = (parseFloat(profile?.savings_target_pct ?? 20)) / 100;
     const targetSavings    = weeklyIncome * targetSavingsPct;
     const actualSpent      = expList.reduce((s: number, e: any) => s + parseFloat(e.amount), 0);
     const actualSavings    = Math.max(0, weeklyIncome - actualSpent);
-    const savingsRate      = targetSavings > 0 ? Math.min(actualSavings / targetSavings, 1) : actualSavings > 0 ? 0.5 : 0;
+    const savingsRate      = clamp(targetSavings > 0 ? actualSavings / targetSavings : actualSavings > 0 ? 0.5 : 0);
 
     // Component 3: Consistency (days logged out of 7)
     const uniqueDays = new Set(expList.map((e: any) => e.date)).size;
-    const consistency = uniqueDays / 7;
+    const consistency = clamp(uniqueDays / 7);
 
-    // Component 4: Improvement trend (sigmoid)
+    // Component 4: Improvement trend (sigmoid — always bounded in (0,1) by construction)
     const rawScore = (budgetAdherence * FDS_WEIGHTS.budgetAdherence + savingsRate * FDS_WEIGHTS.savingsRate + consistency * FDS_WEIGHTS.consistency + 0.5 * FDS_WEIGHTS.improvement) * 100;
     const delta    = prevScore?.score != null ? rawScore - parseFloat(prevScore.score) : 0;
     const improvement = 1 / (1 + Math.exp(-delta / 10));
 
     const weighted = (budgetAdherence * FDS_WEIGHTS.budgetAdherence + savingsRate * FDS_WEIGHTS.savingsRate + consistency * FDS_WEIGHTS.consistency + improvement * FDS_WEIGHTS.improvement) * 100;
     const smoothed = prevScore?.score != null ? 0.7 * weighted + 0.3 * parseFloat(prevScore.score) : weighted;
-    const score    = Math.round(smoothed * 10) / 10;
+    const score    = clamp(Math.round(smoothed * 10) / 10, 0, 100);
     const grade    = score >= 85 ? 'A' : score >= 70 ? 'B' : score >= 55 ? 'C' : score >= 40 ? 'D' : 'F';
 
     // AI commentary
@@ -89,6 +107,9 @@ Be specific and motivating, not generic.`,
 
     return json({ score, grade, commentary, components: { budgetAdherence, savingsRate, consistency, improvement } });
   } catch (err: any) {
+    if (err instanceof AuthError) return json({ error: err.message }, 401);
+    if (err instanceof ValidationError) return json({ error: err.message }, 400);
+    if (err instanceof RateLimitError) return json({ error: err.message }, 429);
     return json({ error: err.message }, 500);
   }
 });

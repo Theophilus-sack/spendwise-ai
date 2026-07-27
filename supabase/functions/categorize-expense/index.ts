@@ -1,5 +1,9 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
+import { authenticate, AuthError } from '../_shared/auth.ts';
+import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
+import { optionalString } from '../_shared/validate.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
 
@@ -9,7 +13,14 @@ serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
 
   try {
-    const { description, amount, merchantHint } = await req.json();
+    const { userId } = await authenticate(req);
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    await enforceRateLimit(supabase, userId, 'categorize-expense', 60, 3600);
+
+    const body = await req.json();
+    const description  = optionalString(body.description, 300, 'description');
+    const merchantHint = optionalString(body.merchantHint, 200, 'merchantHint');
+    const amount       = body.amount;
     const input = `${description ?? ''} ${merchantHint ?? ''}`.trim();
 
     if (!input) return json({ category: 'other', confidence: 0.4 });
@@ -48,6 +59,11 @@ Input: "${input}", ₵${amount ?? '?'}`,
 
     return json(result);
   } catch (err: any) {
+    if (err instanceof AuthError) return json({ error: err.message }, 401);
+    if (err instanceof RateLimitError) return json({ error: err.message }, 429);
+    // Any other failure (Anthropic API error, malformed JSON, etc.) degrades to a safe default
+    // rather than breaking expense creation — this endpoint is a convenience classifier, not
+    // something the caller should have to handle special error shapes for.
     return json({ category: 'other', confidence: 0.4 });
   }
 });

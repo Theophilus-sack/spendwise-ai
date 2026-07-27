@@ -1,13 +1,29 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
+import { authenticate, AuthError } from '../_shared/auth.ts';
+import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
+import { optionalString, ValidationError } from '../_shared/validate.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+// ~4.4MB of raw image data — plenty for a phone photo, bounded so a single
+// request can't blow up latency/cost or hit Anthropic's request size limit.
+const MAX_IMAGE_BASE64_LENGTH = 6_000_000;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
 
   try {
-    const { imageBase64, rawOcrText } = await req.json();
+    const { userId } = await authenticate(req);
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    await enforceRateLimit(supabase, userId, 'ocr-receipt', 15, 3600);
+
+    const body = await req.json();
+    const rawOcrText = optionalString(body.rawOcrText, 4000, 'rawOcrText');
+    const imageBase64: string | undefined = body.imageBase64;
+    if (imageBase64 && imageBase64.length > MAX_IMAGE_BASE64_LENGTH) {
+      throw new ValidationError('Image is too large.');
+    }
 
     let textToStructure = rawOcrText;
 
@@ -79,6 +95,9 @@ Rules:
       lineItems:         result.line_items ?? [],
     });
   } catch (err: any) {
+    if (err instanceof AuthError) return json({ error: err.message, confidence: 0, lineItems: [] }, 401);
+    if (err instanceof ValidationError) return json({ error: err.message, confidence: 0, lineItems: [] }, 400);
+    if (err instanceof RateLimitError) return json({ error: err.message, confidence: 0, lineItems: [] }, 429);
     return json({ error: err.message, confidence: 0, lineItems: [] }, 500);
   }
 });

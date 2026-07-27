@@ -1,19 +1,20 @@
-import React, { useEffect, useCallback } from 'react';
+import React, { useEffect, useCallback, useRef, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  RefreshControl, SafeAreaView,
+  RefreshControl, Animated,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
-import { StatCard, Card, ScoreRing, BudgetBar } from '@/components/ui';
+import { useIncomeStore }  from '@/store/incomeStore';
+import { StatCard, Card, BudgetBar } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
   formatCurrency, formatDateShort, getCategoryEmoji, getCategoryLabel,
-  startOfMonthISO, sumBy,
 } from '@spendwise/shared';
 import type { AppStackNavProp } from '@/navigation/types';
 
@@ -22,29 +23,63 @@ export function DashboardScreen() {
   const { user, profile } = useAuthStore();
   const {
     expenses, loading: expLoading, load: loadExpenses,
-    getThisMonthExpenses, getTotalThisMonth, getSpendingByCategory, getBudgetStatuses,
+    getThisMonthExpenses, getTotalThisMonth, getBudgetStatuses,
   } = useExpenseStore();
-  const { budgets, load: loadBudgets } = useBudgetStore();
+  const { budgets, load: loadBudgets }               = useBudgetStore();
+  const { entries, load: loadIncome, getTotalThisMonth: getIncomeThisMonth } = useIncomeStore();
+
+  const [coachDismissed, setCoachDismissed] = useState(false);
+
+  // Pulsing animation for AI coach banner
+  const pulseAnim = useRef(new Animated.Value(1)).current;
+  useEffect(() => {
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, { toValue: 1.03, duration: 900, useNativeDriver: true }),
+        Animated.timing(pulseAnim, { toValue: 1,    duration: 900, useNativeDriver: true }),
+      ])
+    ).start();
+  }, []);
 
   const refresh = useCallback(async () => {
     if (!user) return;
-    await Promise.all([loadExpenses(user.id), loadBudgets(user.id)]);
+    await Promise.all([loadExpenses(user.id), loadBudgets(user.id), loadIncome(user.id)]);
   }, [user]);
 
   useEffect(() => { refresh(); }, []);
 
-  const currency        = (profile?.currency ?? 'GHS') as any;
-  const monthExpenses   = getThisMonthExpenses();
-  const totalSpent      = getTotalThisMonth();
-  const totalIncome     = profile?.monthlyIncome ?? 0;
-  const balance         = totalIncome - totalSpent;
-  const savingsRate     = totalIncome > 0 ? Math.max(0, ((totalIncome - totalSpent) / totalIncome) * 100) : 0;
-  const byCategory      = getSpendingByCategory();
-  const budgetStatuses  = getBudgetStatuses(budgets);
-  const recentExpenses  = expenses.slice(0, 5);
+  const currency       = (profile?.currency ?? 'GHS') as any;
+  const monthExpenses  = getThisMonthExpenses();
+  const totalSpent     = getTotalThisMonth();
+  const baseSalary     = profile?.monthlyIncome ?? 0;
+  const altIncome      = getIncomeThisMonth();
+  const totalIncome    = baseSalary + altIncome;
+  const balance        = totalIncome - totalSpent;
+  const savingsRate    = totalIncome > 0 ? Math.max(0, ((totalIncome - totalSpent) / totalIncome) * 100) : 0;
+  const budgetStatuses = getBudgetStatuses(budgets);
+  const recentExpenses = expenses.slice(0, 5);
+  const atRiskBudgets  = budgetStatuses.filter(b => b.isOver || b.isNear).slice(0, 2);
 
-  // Top budget at-risk
-  const atRiskBudgets = budgetStatuses.filter(b => b.isOver || b.isNear).slice(0, 2);
+  // Income health: % of income already spent (0-100)
+  const incomeSpentPct   = totalIncome > 0 ? Math.min((totalSpent / totalIncome) * 100, 100) : 0;
+  const incomeHealthColor =
+    incomeSpentPct < 60  ? Colors.success :
+    incomeSpentPct < 85  ? Colors.warning :
+                           Colors.danger;
+  const incomeHealthLabel =
+    incomeSpentPct < 60  ? 'Healthy – you\'re well within income' :
+    incomeSpentPct < 85  ? 'Moderate – spending is approaching income' :
+                           'Critical – spending is nearly all of income';
+
+  // Overall budget health
+  const totalBudgetLimit = budgets.reduce((s, b) => s + b.limitAmount, 0);
+  const budgetSpentPct   = totalBudgetLimit > 0 ? Math.min((totalSpent / totalBudgetLimit) * 100, 100) : 0;
+  const overBudgetCount  = budgetStatuses.filter(b => b.isOver).length;
+  const budgetHealthOk   = overBudgetCount === 0;
+  const budgetColor      = budgetHealthOk ? Colors.success : Colors.danger;
+
+  // Show AI coach when any budget is exceeded
+  const showAICoach = overBudgetCount > 0 && !coachDismissed;
 
   const greeting = () => {
     const h = new Date().getHours();
@@ -107,6 +142,117 @@ export function DashboardScreen() {
             </View>
           </View>
         </LinearGradient>
+
+        {/* ── Income Section ── */}
+        <Card style={styles.incomeSection}>
+          <View style={styles.incomeSectionHeader}>
+            <View style={styles.incomeTitleRow}>
+              <Ionicons name="wallet-outline" size={18} color={Colors.primary} />
+              <Text style={styles.incomeSectionTitle}>Income Overview</Text>
+            </View>
+            <TouchableOpacity onPress={() => nav.navigate('Income')} style={styles.manageBtn}>
+              <Text style={styles.manageBtnText}>Manage</Text>
+              <Ionicons name="chevron-forward" size={14} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          {/* Primary income row */}
+          <View style={styles.incomeRow}>
+            <View style={styles.incomeIcon}><Text style={{ fontSize: 16 }}>💼</Text></View>
+            <View style={styles.incomeInfo}>
+              <Text style={styles.incomeLabel}>Base Salary</Text>
+              <Text style={styles.incomeSubLabel}>Primary · monthly</Text>
+            </View>
+            <Text style={styles.incomeValue}>{formatCurrency(baseSalary, currency)}</Text>
+          </View>
+
+          {/* Alt income rows (up to 2) */}
+          {entries.slice(0, 2).map(e => (
+            <View key={e.id} style={styles.incomeRow}>
+              <View style={styles.incomeIcon}><Text style={{ fontSize: 16 }}>💸</Text></View>
+              <View style={styles.incomeInfo}>
+                <Text style={styles.incomeLabel}>{e.sourceName ?? e.source}</Text>
+                <Text style={styles.incomeSubLabel}>{e.isRecurring ? 'Recurring' : 'One-time'} · {e.date}</Text>
+              </View>
+              <Text style={styles.incomeValue}>{formatCurrency(e.amount, currency)}</Text>
+            </View>
+          ))}
+
+          {entries.length > 2 && (
+            <TouchableOpacity onPress={() => nav.navigate('Income')}>
+              <Text style={styles.viewMoreText}>+{entries.length - 2} more income sources</Text>
+            </TouchableOpacity>
+          )}
+
+          <TouchableOpacity style={styles.addIncomeRow} onPress={() => nav.navigate('Income')}>
+            <Ionicons name="add-circle-outline" size={18} color={Colors.primary} />
+            <Text style={styles.addIncomeText}>Add alternative income</Text>
+          </TouchableOpacity>
+
+          {/* ── Income health bar ── */}
+          <View style={styles.healthBarSection}>
+            <View style={styles.healthBarHeader}>
+              <Text style={styles.healthBarTitle}>Income Status</Text>
+              <Text style={[styles.healthBarPct, { color: incomeHealthColor }]}>{incomeSpentPct.toFixed(0)}% spent</Text>
+            </View>
+            <View style={styles.healthTrack}>
+              <View style={[styles.healthFill, { width: `${incomeSpentPct}%` as any, backgroundColor: incomeHealthColor }]} />
+            </View>
+            <Text style={[styles.healthLabel, { color: incomeHealthColor }]}>{incomeHealthLabel}</Text>
+          </View>
+        </Card>
+
+        {/* ── Budget Health Bar ── */}
+        <Card style={styles.budgetHealthCard}>
+          <View style={styles.budgetHealthHeader}>
+            <Ionicons name={budgetHealthOk ? 'shield-checkmark-outline' : 'warning-outline'} size={20} color={budgetColor} />
+            <Text style={styles.budgetHealthTitle}>Overall Budget Health</Text>
+            <View style={[styles.healthBadge, { backgroundColor: budgetColor + '18', borderColor: budgetColor + '40' }]}>
+              <Text style={[styles.healthBadgeText, { color: budgetColor }]}>
+                {budgetHealthOk ? 'ON TRACK' : `${overBudgetCount} OVER`}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.healthTrack}>
+            <View style={[styles.healthFill, { width: `${Math.min(budgetSpentPct, 100)}%` as any, backgroundColor: budgetColor }]} />
+          </View>
+          <Text style={[styles.budgetHealthMsg, { color: budgetColor }]}>
+            {budgetHealthOk
+              ? '✅ You\'re doing well — all budgets are on track this month!'
+              : `⚠️ ${overBudgetCount} budget${overBudgetCount > 1 ? 's' : ''} exceeded — review your spending to get back on track.`}
+          </Text>
+        </Card>
+
+        {/* ── AI Coach Banner (when over budget) ── */}
+        {showAICoach && (
+          <Animated.View style={[styles.coachBanner, { transform: [{ scale: pulseAnim }] }]}>
+            <LinearGradient colors={['#1A1A2E', '#2D1B69']} style={styles.coachGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+              <View style={styles.coachTop}>
+                <View style={styles.coachLeft}>
+                  <Text style={styles.coachEmoji}>🤖</Text>
+                  <View>
+                    <Text style={styles.coachTitle}>AI Coach Alert</Text>
+                    <Text style={styles.coachSub}>You've exceeded {overBudgetCount} budget{overBudgetCount > 1 ? 's' : ''} this month</Text>
+                  </View>
+                </View>
+                <TouchableOpacity onPress={() => setCoachDismissed(true)}>
+                  <Ionicons name="close-circle" size={22} color="rgba(255,255,255,0.5)" />
+                </TouchableOpacity>
+              </View>
+              <Text style={styles.coachBody}>
+                I can help you cut costs and find affordable alternatives based on your spending and location.
+              </Text>
+              <TouchableOpacity
+                style={styles.coachBtn}
+                onPress={() => nav.navigate('AIAdvisor', {
+                  initialMessage: `I've exceeded my budget in ${overBudgetCount} categor${overBudgetCount > 1 ? 'ies' : 'y'} this month. Help me minimise costs and suggest more affordable alternatives I can switch to based on my location and budget.`,
+                })}
+              >
+                <Text style={styles.coachBtnText}>Get cost-saving tips →</Text>
+              </TouchableOpacity>
+            </LinearGradient>
+          </Animated.View>
+        )}
 
         {/* ── Stat Row ── */}
         <View style={styles.statRow}>
@@ -218,10 +364,10 @@ export function DashboardScreen() {
         {/* ── Quick Actions ── */}
         <View style={styles.quickActions}>
           {[
-            { icon: 'camera-outline',    label: 'Scan Receipt', screen: 'ReceiptScanner' },
-            { icon: 'analytics-outline', label: 'Analytics',    screen: 'Analytics' },
-            { icon: 'trophy-outline',    label: 'Achievements', screen: 'Achievements' },
-            { icon: 'git-compare-outline', label: 'What-If',    screen: 'WhatIfSimulator' },
+            { icon: 'camera-outline',      label: 'Scan Receipt', screen: 'ReceiptScanner' },
+            { icon: 'analytics-outline',   label: 'Analytics',    screen: 'Analytics' },
+            { icon: 'trophy-outline',      label: 'Goals',        screen: 'Goals' },
+            { icon: 'git-compare-outline', label: 'What-If',      screen: 'WhatIfSimulator' },
           ].map(({ icon, label, screen }) => (
             <TouchableOpacity
               key={screen}
@@ -263,14 +409,12 @@ const styles = StyleSheet.create({
   scroll:  { flex: 1 },
   content: { padding: Spacing.base, gap: Spacing.base, paddingBottom: Spacing.xxxl },
 
-  // Header
   header:        { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', paddingTop: Spacing.sm },
   greeting:      { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
   date:          { fontSize: Typography.sm, color: Colors.textSecondary, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: Spacing.sm },
   iconBtn:       { width: 38, height: 38, borderRadius: Radius.full, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', ...Shadows.sm },
 
-  // Hero
   heroCard:      { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...Shadows.primary },
   heroLabel:     { fontSize: Typography.sm, color: 'rgba(255,255,255,0.75)', fontWeight: Typography.medium },
   heroAmount:    { fontSize: Typography.xxxl, fontWeight: Typography.bold, color: '#fff', letterSpacing: -1 },
@@ -280,17 +424,62 @@ const styles = StyleSheet.create({
   heroStatValue: { fontSize: Typography.base, fontWeight: Typography.semibold, color: '#fff' },
   heroDivider:   { width: 1, height: 32, backgroundColor: 'rgba(255,255,255,0.2)' },
 
-  // Stats
+  // Income section
+  incomeSection:       { gap: Spacing.sm },
+  incomeSectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  incomeTitleRow:      { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  incomeSectionTitle:  { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.text },
+  manageBtn:           { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  manageBtnText:       { fontSize: Typography.sm, color: Colors.primary, fontWeight: Typography.medium },
+
+  incomeRow:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
+  incomeIcon:    { width: 34, height: 34, borderRadius: Radius.md, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
+  incomeInfo:    { flex: 1 },
+  incomeLabel:   { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.text },
+  incomeSubLabel:{ fontSize: Typography.xs, color: Colors.textSecondary },
+  incomeValue:   { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.primary },
+  viewMoreText:  { fontSize: Typography.xs, color: Colors.primary, textAlign: 'center', paddingVertical: Spacing.xs },
+
+  addIncomeRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingTop: Spacing.xs, borderTopWidth: 1, borderTopColor: Colors.border },
+  addIncomeText: { fontSize: Typography.sm, color: Colors.primary, fontWeight: Typography.medium },
+
+  // Health bars
+  healthBarSection: { paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.xs },
+  healthBarHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  healthBarTitle:   { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.text },
+  healthBarPct:     { fontSize: Typography.sm, fontWeight: Typography.bold },
+  healthTrack:      { height: 10, borderRadius: Radius.full, backgroundColor: Colors.border, overflow: 'hidden' },
+  healthFill:       { height: 10, borderRadius: Radius.full },
+  healthLabel:      { fontSize: Typography.xs, fontWeight: Typography.medium },
+
+  // Budget health card
+  budgetHealthCard:   { gap: Spacing.sm },
+  budgetHealthHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  budgetHealthTitle:  { flex: 1, fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.text },
+  healthBadge:        { paddingHorizontal: Spacing.sm, paddingVertical: 3, borderRadius: Radius.full, borderWidth: 1 },
+  healthBadgeText:    { fontSize: Typography.xs, fontWeight: Typography.bold },
+  budgetHealthMsg:    { fontSize: Typography.sm, fontWeight: Typography.medium, lineHeight: 20 },
+
+  // AI Coach
+  coachBanner:   { borderRadius: Radius.xl, overflow: 'hidden', ...Shadows.lg },
+  coachGradient: { padding: Spacing.base, gap: Spacing.sm },
+  coachTop:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  coachLeft:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  coachEmoji:    { fontSize: 28 },
+  coachTitle:    { fontSize: Typography.base, fontWeight: Typography.bold, color: '#fff' },
+  coachSub:      { fontSize: Typography.xs, color: 'rgba(255,255,255,0.7)' },
+  coachBody:     { fontSize: Typography.sm, color: 'rgba(255,255,255,0.85)', lineHeight: 20 },
+  coachBtn:      { backgroundColor: Colors.accent, borderRadius: Radius.lg, padding: Spacing.sm, alignItems: 'center' },
+  coachBtnText:  { color: '#fff', fontWeight: Typography.bold, fontSize: Typography.sm },
+
   statRow: { flexDirection: 'row', gap: Spacing.sm },
 
-  // AI insight
   insightBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.primary + '30', padding: Spacing.base, gap: Spacing.sm },
   insightLeft:   { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   insightEmoji:  { fontSize: 28 },
   insightTitle:  { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.primary },
   insightBody:   { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: 2 },
 
-  // Budget
   budgetItem:   { gap: Spacing.sm },
   budgetHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   budgetEmoji:  { fontSize: 18 },
@@ -299,14 +488,12 @@ const styles = StyleSheet.create({
   overBadgeText:{ fontSize: Typography.xs, color: Colors.danger, fontWeight: Typography.bold },
   allGoodText:  { fontSize: Typography.base, color: Colors.success, fontWeight: Typography.medium, padding: Spacing.sm },
 
-  // Forecast
   forecastCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.base, ...Shadows.sm },
   forecastLeft:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   forecastEmoji: { fontSize: 28 },
   forecastTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
   forecastSub:   { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: 2 },
 
-  // Transactions
   section:       { gap: Spacing.sm },
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   sectionTitle:  { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.text },
@@ -321,13 +508,11 @@ const styles = StyleSheet.create({
   txDate:  { fontSize: Typography.xs, color: Colors.textSecondary },
   txAmount:{ fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
 
-  // Empty state
   emptyState:  { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
   emptyEmoji:  { fontSize: 40 },
   emptyText:   { fontSize: Typography.base, color: Colors.textSecondary },
   emptyAction: { fontSize: Typography.base, color: Colors.primary, fontWeight: Typography.semibold },
 
-  // Quick actions
   quickActions: { flexDirection: 'row', gap: Spacing.sm },
   quickBtn:     { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', gap: Spacing.xs, ...Shadows.sm },
   quickLabel:   { fontSize: 10, color: Colors.textSecondary, fontWeight: Typography.medium, textAlign: 'center' },

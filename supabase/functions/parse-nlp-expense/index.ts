@@ -1,13 +1,26 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
+import { authenticate, AuthError } from '../_shared/auth.ts';
+import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
+import { requireString, ValidationError } from '../_shared/validate.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
+const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
 
   try {
-    const { input, today } = await req.json();
+    const { userId } = await authenticate(req);
+    const supabase = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
+    await enforceRateLimit(supabase, userId, 'parse-nlp-expense', 30, 3600);
+
+    const body = await req.json();
+    const input = requireString(body.input, 300, 'input');
+    const today = requireString(body.today, 10, 'today');
+    if (!DATE_RE.test(today)) throw new ValidationError('today must be an ISO date (YYYY-MM-DD).');
+
     const yesterday = new Date(today);
     yesterday.setDate(yesterday.getDate() - 1);
     const yesterdayStr = yesterday.toISOString().split('T')[0];
@@ -50,6 +63,9 @@ Examples:
 
     return json(result);
   } catch (err: any) {
+    if (err instanceof AuthError) return json({ error: err.message }, 401);
+    if (err instanceof ValidationError) return json({ error: err.message }, 400);
+    if (err instanceof RateLimitError) return json({ error: err.message }, 429);
     return json({ error: err.message }, 500);
   }
 });

@@ -1,4 +1,5 @@
 import { FDS_WEIGHTS } from './constants';
+import { clamp } from './utils';
 import type { FDSComponents, FDSResult } from './types';
 
 export interface FDSInputs {
@@ -34,17 +35,19 @@ export function computeFDS(inputs: FDSInputs): FDSResult {
   } = inputs;
 
   // Component 1: Budget Adherence — partial credit per category
-  const budgetAdherence = totalCategories > 0
+  const budgetAdherence = clamp(totalCategories > 0
     ? 1 - (categoriesOverBudget / totalCategories)
-    : 1;
+    : 1, 0, 1);
 
-  // Component 2: Savings Rate — capped at 1.0 (over-saving doesn't inflate score)
-  const savingsRate = targetSavings > 0
-    ? Math.min(actualSavings / targetSavings, 1.0)
-    : actualSavings > 0 ? 0.5 : 0;
+  // Component 2: Savings Rate — clamped to [0,1] (over-saving doesn't inflate score;
+  // a negative savings rate, i.e. spending more than target, floors at 0 rather than
+  // dragging the whole weighted score below its intended range)
+  const savingsRate = clamp(targetSavings > 0
+    ? actualSavings / targetSavings
+    : actualSavings > 0 ? 0.5 : 0, 0, 1);
 
   // Component 3: Consistency — fraction of period days with at least one expense logged
-  const consistency = daysInPeriod > 0 ? daysLogged / daysInPeriod : 0;
+  const consistency = clamp(daysInPeriod > 0 ? daysLogged / daysInPeriod : 0, 0, 1);
 
   // Component 4: Improvement Trend — sigmoid on delta to prevent outlier weeks dominating
   // +10 pt delta → 0.73, -10 pt delta → 0.27, flat → 0.50
@@ -71,7 +74,11 @@ export function computeFDS(inputs: FDSInputs): FDSResult {
     ? emaAlpha * rawFinal + (1 - emaAlpha) * previousScore
     : rawFinal;
 
-  const score = Math.round(smoothed * 10) / 10;
+  // Final defensive clamp: components above are each already bounded to [0,1] and the
+  // weights sum to 1, so this should be a no-op in practice — it exists so a future
+  // caller passing an out-of-range previousScore (e.g. corrupted stored data) still
+  // can't push the displayed score outside the documented 0–100 range.
+  const score = clamp(Math.round(smoothed * 10) / 10, 0, 100);
 
   const components: FDSComponents = {
     budgetAdherence: Math.round(budgetAdherence * 1000) / 1000,
@@ -83,12 +90,12 @@ export function computeFDS(inputs: FDSInputs): FDSResult {
   return {
     score,
     components,
-    grade: toGrade(score),
+    grade: scoreToGrade(score),
     trend: delta > 2 ? 'improving' : delta < -2 ? 'declining' : 'stable',
   };
 }
 
-function toGrade(score: number): FDSResult['grade'] {
+export function scoreToGrade(score: number): FDSResult['grade'] {
   if (score >= 85) return 'A';
   if (score >= 70) return 'B';
   if (score >= 55) return 'C';

@@ -104,6 +104,24 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   `);
 }
 
+// ─── Lifecycle ────────────────────────────────────────────────────────────────
+
+/** Wipes every local table. Called on sign-out so a signed-out account's
+ *  financial data doesn't keep sitting in on-device storage — important both
+ *  for privacy on a shared/borrowed device and so a different account signing
+ *  in next can never read another user's rows out of the local cache. */
+export async function dbClearAll(): Promise<void> {
+  const db = await getDB();
+  await db.execAsync(`
+    DELETE FROM expenses;
+    DELETE FROM budgets;
+    DELETE FROM goals;
+    DELETE FROM income_entries;
+    DELETE FROM streak;
+    DELETE FROM sync_queue;
+  `);
+}
+
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
 export async function dbInsertExpense(expense: Expense): Promise<void> {
