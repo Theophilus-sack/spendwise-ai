@@ -58,7 +58,11 @@
     ],
     "extra": {
       "supabaseUrl": "",
-      "supabaseAnonKey": ""
-    }
+      "supabaseAnonKey": "",
+      "eas": {
+        "projectId": "b236c573-7f74-4dc3-9a9b-6a4b7949d320"
+      }
+    },
+    "owner": "theophilus23"
   }
 }
