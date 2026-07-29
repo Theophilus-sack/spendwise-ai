@@ -6,6 +6,7 @@ import type { FDSComponents, FDSResult } from '@spendwise/shared';
 interface DisciplineState {
   score:      number | null;
   grade:      FDSResult['grade'] | null;
+  trend:      FDSResult['trend'] | null;
   components: FDSComponents | null;
   commentary: string | null;
   weekStart:  string | null;
@@ -19,6 +20,7 @@ interface DisciplineState {
 export const useDisciplineStore = create<DisciplineState>((set) => ({
   score:      null,
   grade:      null,
+  trend:      null,
   components: null,
   commentary: null,
   weekStart:  null,
@@ -53,6 +55,7 @@ export const useDisciplineStore = create<DisciplineState>((set) => ({
             improvement:     Number(data.improvement_trend ?? 0),
           },
           commentary: data.ai_commentary ?? null,
+          trend: null, // not stored on the row itself — only known right when it's freshly computed
           weekStart,
           loading: false,
         });
@@ -63,6 +66,7 @@ export const useDisciplineStore = create<DisciplineState>((set) => ({
       const fresh = await callEdgeFunction<{
         score: number;
         grade: FDSResult['grade'];
+        trend: FDSResult['trend'];
         commentary: string;
         components: FDSComponents;
       }>('compute-fds', { weekStart });
@@ -70,6 +74,7 @@ export const useDisciplineStore = create<DisciplineState>((set) => ({
       set({
         score:      fresh.score,
         grade:      fresh.grade,
+        trend:      fresh.trend,
         components: fresh.components,
         commentary: fresh.commentary,
         weekStart,
@@ -86,7 +91,7 @@ export const useDisciplineStore = create<DisciplineState>((set) => ({
   },
 
   reset: () => set({
-    score: null, grade: null, components: null, commentary: null,
+    score: null, grade: null, trend: null, components: null, commentary: null,
     weekStart: null, loading: false, error: null,
   }),
 }));

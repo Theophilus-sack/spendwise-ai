@@ -78,3 +78,37 @@ export function categorizeLocally(
 }
 
 export const LOW_CONFIDENCE_THRESHOLD = 0.70;
+
+// ─── Local NLP fallback ─────────────────────────────────────────────────────
+
+export interface LocalExpenseParse {
+  amount?: number;
+  category: ExpenseCategory;
+  description: string;
+  date: string;
+  confidence: number;
+}
+
+/**
+ * Best-effort, fully offline fallback for Quick Add — used when the
+ * AI-backed parse-nlp-expense function is unreachable (offline, or not yet
+ * deployed). Extracts an amount via regex and a category via the same rule
+ * engine categorizeLocally uses. It does not attempt merchant extraction,
+ * which needs real language understanding to do reliably — the user fills
+ * that in on the form after this pre-fills what it safely can.
+ */
+export function parseExpenseLocally(input: string, today: string): LocalExpenseParse {
+  const amountMatch = input.match(/(\d+(?:\.\d{1,2})?)/);
+  const amount = amountMatch ? parseFloat(amountMatch[1]) : undefined;
+
+  const { category, confidence } = categorizeLocally(input);
+  const date = /\byesterday\b/i.test(input) ? shiftDate(today, -1) : today;
+
+  return { amount, category, description: input.trim(), date, confidence };
+}
+
+function shiftDate(iso: string, deltaDays: number): string {
+  const d = new Date(`${iso}T00:00:00`);
+  d.setDate(d.getDate() + deltaDays);
+  return d.toISOString().split('T')[0];
+}

@@ -11,21 +11,11 @@ import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
   CURRENCIES, INCOME_RANGES, INCOME_SOURCES, ONBOARDING_GOALS,
   CATEGORIES, PAYMENT_METHODS, DEFAULT_BUDGET_PCT,
+  SPENDING_PERSONALITIES, DISCIPLINE_STYLES,
 } from '@spendwise/shared';
 import type { OnboardingData, Currency, ExpenseCategory, PaymentMethod, IncomeSource } from '@spendwise/shared';
 
 const TOTAL_STEPS = 7;
-
-const SPENDING_PERSONALITIES = [
-  { id: 'saver',    label: 'Saver',    emoji: '🐷', desc: 'I save first, spend what\'s left' },
-  { id: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'I try to balance saving and spending' },
-  { id: 'spender',  label: 'Spender',  emoji: '🛍️', desc: 'I spend freely and save when I can' },
-] as const;
-
-const DISCIPLINE_STYLES = [
-  { id: 'strict',   label: 'Strict',   emoji: '🔒', desc: 'Warn me hard when I go over budget' },
-  { id: 'flexible', label: 'Flexible', emoji: '😊', desc: 'Gentle nudges are enough for me' },
-] as const;
 
 export function OnboardingWizard() {
   const { user, fetchProfile } = useAuthStore();

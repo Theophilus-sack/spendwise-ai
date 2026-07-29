@@ -7,10 +7,11 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
+import { callEdgeFunction } from '@/lib/supabase';
 import { Button, Input } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
-  CATEGORIES, PAYMENT_METHODS, MOBILE_MONEY_TYPES, todayISO,
+  CATEGORIES, PAYMENT_METHODS, MOBILE_MONEY_TYPES, todayISO, parseExpenseLocally,
 } from '@spendwise/shared';
 import type { ExpenseCategory, PaymentMethod, MobileMoneyType } from '@spendwise/shared';
 import type { AddExpenseProps } from '@/navigation/types';
@@ -27,6 +28,8 @@ export function AddExpenseScreen() {
   const [description,     setDescription]     = useState(prefill.description ?? '');
   const [merchantName,    setMerchantName]    = useState(prefill.merchantName ?? '');
   const [category,        setCategory]        = useState<ExpenseCategory>(prefill.category ?? 'other');
+  const [useCustomCategory, setUseCustomCategory] = useState(false);
+  const [customCategory,    setCustomCategory]    = useState('');
   const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod>(prefill.paymentMethod ?? 'mobile_money');
   const [mobileMoneyType, setMobileMoneyType] = useState<MobileMoneyType | undefined>(prefill.mobileMoneyType);
   const [date,            setDate]            = useState(prefill.date ?? todayISO());
@@ -42,7 +45,6 @@ export function AddExpenseScreen() {
     if (!nlpInput.trim()) return;
     setNlpLoading(true);
     try {
-      const { callEdgeFunction } = await import('@/lib/supabase');
       const result = await callEdgeFunction<{
         amount?: number; description?: string; merchant_name?: string;
         category?: ExpenseCategory; date?: string; payment_method?: PaymentMethod;
@@ -57,7 +59,19 @@ export function AddExpenseScreen() {
       if (result.payment_method) setPaymentMethod(result.payment_method);
       setMode('form');
     } catch {
-      Alert.alert('Could not parse', 'Try the form instead, or rephrase your input.');
+      // The AI parser is unreachable (offline, or not deployed) — fall back to
+      // a basic on-device guess rather than a dead end. It only reliably gets
+      // amount + category, so the user still needs to check merchant/date.
+      const local = parseExpenseLocally(nlpInput, todayISO());
+      if (local.amount) setAmount(local.amount.toString());
+      setDescription(local.description);
+      setCategory(local.category);
+      setDate(local.date);
+      setMode('form');
+      Alert.alert(
+        'Filled in a rough guess',
+        "Couldn't reach the AI parser, so this is a basic estimate — please check the amount, category, and merchant before saving.",
+      );
     } finally {
       setNlpLoading(false);
     }
@@ -69,11 +83,16 @@ export function AddExpenseScreen() {
       Alert.alert('Invalid amount', 'Please enter a valid amount.');
       return;
     }
+    if (useCustomCategory && !customCategory.trim()) {
+      Alert.alert('Category needed', 'Type a category name, or switch back to one of the presets.');
+      return;
+    }
     if (!user) return;
+    const effectiveCategory = (useCustomCategory ? customCategory.trim() : category) as ExpenseCategory;
     setLoading(true);
     try {
       await addExpense(user.id, {
-        amount: amountNum, currency, category, paymentMethod,
+        amount: amountNum, currency, category: effectiveCategory, paymentMethod,
         mobileMoneyType, description, merchantName, date, notes,
       });
       nav.goBack();
@@ -156,16 +175,34 @@ export function AddExpenseScreen() {
                   {Object.entries(CATEGORIES).map(([id, { emoji, label }]) => (
                     <TouchableOpacity
                       key={id}
-                      style={[styles.chip, category === id && styles.chipSelected]}
-                      onPress={() => setCategory(id as ExpenseCategory)}
+                      style={[styles.chip, !useCustomCategory && category === id && styles.chipSelected]}
+                      onPress={() => { setCategory(id as ExpenseCategory); setUseCustomCategory(false); }}
                     >
                       <Text style={styles.chipEmoji}>{emoji}</Text>
-                      <Text style={[styles.chipText, category === id && styles.chipTextSelected]}>
+                      <Text style={[styles.chipText, !useCustomCategory && category === id && styles.chipTextSelected]}>
                         {label}
                       </Text>
                     </TouchableOpacity>
                   ))}
+                  <TouchableOpacity
+                    style={[styles.chip, useCustomCategory && styles.chipSelected]}
+                    onPress={() => setUseCustomCategory(true)}
+                  >
+                    <Text style={styles.chipEmoji}>✏️</Text>
+                    <Text style={[styles.chipText, useCustomCategory && styles.chipTextSelected]}>
+                      Custom
+                    </Text>
+                  </TouchableOpacity>
                 </View>
+                {useCustomCategory && (
+                  <Input
+                    placeholder="Type a category, e.g. Haircut"
+                    value={customCategory}
+                    onChangeText={setCustomCategory}
+                    leftIcon="pricetag-outline"
+                    autoFocus
+                  />
+                )}
               </View>
 
               {/* Payment Method */}

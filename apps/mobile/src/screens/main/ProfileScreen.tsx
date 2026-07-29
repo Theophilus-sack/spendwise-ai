@@ -19,7 +19,8 @@ export function ProfileScreen() {
     { icon: 'trophy-outline',      label: 'Achievements',     action: () => nav.navigate('Achievements') },
     { icon: 'shield-outline',      label: 'Discipline Score', action: () => nav.navigate('ScoreDetail') },
     { icon: 'git-compare-outline', label: 'What-If Simulator',action: () => nav.navigate('WhatIfSimulator') },
-    { icon: 'share-outline',       label: 'Export Reports',   action: () => Alert.alert('Coming soon', 'PDF/CSV export in Phase 4') },
+    { icon: 'share-outline',       label: 'Export Reports',   action: () => nav.navigate('Export') },
+    { icon: 'settings-outline',    label: 'Settings',         action: () => nav.navigate('Settings') },
   ];
 
   return (

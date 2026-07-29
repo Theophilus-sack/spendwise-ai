@@ -6,6 +6,10 @@ import { AIAdvisorScreen }    from '@/screens/ai/AIAdvisorScreen';
 import { GoalsScreen }        from '@/screens/main/GoalsScreen';
 import { IncomeScreen }       from '@/screens/main/IncomeScreen';
 import { DebtsScreen }        from '@/screens/main/DebtsScreen';
+import { SettingsScreen }     from '@/screens/main/SettingsScreen';
+import { NotificationsScreen } from '@/screens/main/NotificationsScreen';
+import { ExportScreen } from '@/screens/main/ExportScreen';
+import { WeeklyReflectionScreen } from '@/screens/main/WeeklyReflectionScreen';
 import { AnalyticsScreen }    from '@/screens/main/AnalyticsScreen';
 import { ForecastScreen }     from '@/screens/main/ForecastScreen';
 import { AchievementsScreen } from '@/screens/main/AchievementsScreen';
@@ -39,6 +43,10 @@ export function AppNavigator() {
       <Stack.Screen name="Achievements"    component={AchievementsScreen}    options={{ title: 'Achievements' }} />
       <Stack.Screen name="ScoreDetail"     component={ScoreDetailScreen}     options={{ title: 'Discipline Score' }} />
       <Stack.Screen name="WhatIfSimulator" component={WhatIfScreen}          options={{ title: 'What-If Simulator' }} />
+      <Stack.Screen name="Settings"        component={SettingsScreen}       options={{ title: 'Settings' }} />
+      <Stack.Screen name="Notifications"   component={NotificationsScreen}  options={{ title: 'Notifications' }} />
+      <Stack.Screen name="Export"          component={ExportScreen}         options={{ title: 'Export Reports' }} />
+      <Stack.Screen name="WeeklyReflection" component={WeeklyReflectionScreen} options={{ title: 'Weekly Reflection', presentation: 'modal' }} />
     </Stack.Navigator>
   );
 }

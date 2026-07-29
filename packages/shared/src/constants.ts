@@ -1,4 +1,4 @@
-import type { Badge, BadgeId, ExpenseCategory, Currency } from './types';
+import type { Badge, BadgeId, ExpenseCategory, Currency, DebtType, SpendingPersonality, DisciplineStyle } from './types';
 
 // ─── Expense Categories ───────────────────────────────────────────────────────
 
@@ -54,6 +54,45 @@ export const INCOME_SOURCES = {
   investments: { label: 'Investments',       emoji: '📈' },
   allowance:   { label: 'Allowance',         emoji: '🎓' },
   other:       { label: 'Other',             emoji: '💫' },
+};
+
+// ─── Spending Personality & Discipline Style ───────────────────────────────────
+// Shared between onboarding and Settings so both offer the exact same choices.
+
+export const SPENDING_PERSONALITIES: Array<{ id: SpendingPersonality; label: string; emoji: string; desc: string }> = [
+  { id: 'saver',    label: 'Saver',    emoji: '🐷', desc: "I save first, spend what's left" },
+  { id: 'balanced', label: 'Balanced', emoji: '⚖️', desc: 'I try to balance saving and spending' },
+  { id: 'spender',  label: 'Spender',  emoji: '🛍️', desc: 'I spend freely and save when I can' },
+];
+
+export const DISCIPLINE_STYLES: Array<{ id: DisciplineStyle; label: string; emoji: string; desc: string }> = [
+  { id: 'strict',   label: 'Strict',   emoji: '🔒', desc: 'Warn me hard when I go over budget' },
+  { id: 'flexible', label: 'Flexible', emoji: '😊', desc: 'Gentle nudges are enough for me' },
+];
+
+// ─── Spending Alternatives ──────────────────────────────────────────────────
+// Rule-based, Ghana-specific suggestions per category — used by both the
+// What-If simulator and the Weekly Reflection prompt. Deliberately not
+// cross-user "people like you" recommendations: those need a real user base
+// at meaningful scale to say anything true. This is the honest version until
+// then — a curated list, not a fabricated pattern.
+
+export const SPENDING_ALTERNATIVES: Partial<Record<ExpenseCategory, string[]>> = {
+  food:          ['Cook at home instead of eating out', 'Use meal-prep to reduce daily food cost', 'Try local chop bars instead of restaurants'],
+  transport:     ['Use trotro instead of Uber for short trips', 'Carpool with colleagues', 'Walk or cycle for trips under 2 km'],
+  entertainment: ['Use free streaming trials before paying', 'Explore free community events', 'Share subscriptions with family'],
+  shopping:      ['Buy from local markets instead of malls', 'Wait for sales before non-urgent purchases', 'Buy second-hand for non-essentials'],
+  groceries:     ['Buy in bulk from wholesale markets', 'Switch to store-brand products', 'Plan meals to reduce food waste'],
+  health:        ['Use NHIS-covered facilities for check-ups', 'Buy generic medications', 'Focus on preventive health habits'],
+};
+
+// ─── Debt Types ───────────────────────────────────────────────────────────────
+
+export const DEBT_TYPES: Record<DebtType, { label: string; emoji: string; direction: 'owe' | 'owed' }> = {
+  loan:        { label: 'Loan',              emoji: '🏦', direction: 'owe' },
+  credit_card: { label: 'Credit Card',       emoji: '💳', direction: 'owe' },
+  i_owe:       { label: 'I Owe Someone',     emoji: '🤝', direction: 'owe' },
+  owed_to_me:  { label: 'Owed to Me',        emoji: '💰', direction: 'owed' },
 };
 
 // ─── Income Ranges ────────────────────────────────────────────────────────────

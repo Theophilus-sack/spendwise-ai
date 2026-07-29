@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import {
   dbInsertExpense, dbGetExpenses, dbDeleteExpense,
+  dbGetUnsyncedExpenses, dbMarkExpenseSynced,
 } from '@/lib/database';
 import {
   todayISO, startOfMonthISO, groupBy, sumBy,
@@ -38,18 +39,37 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     try {
       const local = await dbGetExpenses(userId);
       set({ expenses: local });
-      // Background sync from Supabase
-      const { data } = await supabase
+
+      // Retry any expenses that were saved locally but never confirmed on the
+      // server — e.g. the device was offline, or the earlier push failed —
+      // before pulling the "authoritative" remote set below. Without this,
+      // an unsynced expense gets silently wiped the moment load() runs again.
+      const unsynced = await dbGetUnsyncedExpenses(userId);
+      for (const e of unsynced) {
+        const { error } = await supabase.from('expenses').upsert(expenseToRemote(e));
+        if (!error) await dbMarkExpenseSynced(e.id);
+      }
+
+      const { data, error } = await supabase
         .from('expenses')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: false })
         .limit(500);
-      if (data) {
-        const mapped = data.map(remoteToExpense);
-        for (const e of mapped) await dbInsertExpense(e);
-        set({ expenses: mapped });
-      }
+
+      // A failed fetch must not wipe out what's already on screen.
+      if (error) return;
+
+      const remote = (data ?? []).map(remoteToExpense);
+      for (const e of remote) await dbInsertExpense(e, true);
+
+      // Anything still unsynced after the retry above (e.g. still offline)
+      // must be preserved — it exists locally but the remote set won't have it.
+      const stillUnsynced = await dbGetUnsyncedExpenses(userId);
+      const remoteIds = new Set(remote.map(e => e.id));
+      const preserved = stillUnsynced.filter(e => !remoteIds.has(e.id));
+
+      set({ expenses: [...remote, ...preserved] });
     } finally {
       set({ loading: false });
     }
@@ -111,15 +131,20 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       updatedAt:       now,
     };
 
-    // Save locally first (offline-safe)
-    await dbInsertExpense(expense);
+    // Save locally first (offline-safe) — this is the point the user sees as
+    // "saved"; everything from here is best-effort sync to the server.
+    await dbInsertExpense(expense, false);
     set(s => ({ expenses: [expense, ...s.expenses] }));
 
-    // Sync to Supabase in background
-    supabase.from('expenses').upsert(expenseToRemote(expense)).then(() => {
-      // After cloud save, trigger anomaly detection
+    const { error } = await supabase.from('expenses').upsert(expenseToRemote(expense));
+    if (!error) {
+      await dbMarkExpenseSynced(expense.id);
       callEdgeFunction('detect-anomaly', { expenseId: id }).catch(() => {});
-    });
+      callEdgeFunction('check-budget-alert', { category: expense.category }).catch(() => {});
+    }
+    // If the push failed (offline, transient error, etc.) the expense stays
+    // visible locally with synced=0 — load()'s retry pass will pick it up
+    // and push it again on the next refresh, instead of it just vanishing.
 
     return expense;
   },
@@ -140,17 +165,28 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   syncToCloud: async (userId) => {
     set({ syncing: true });
     try {
-      const { data } = await supabase
+      const unsynced = await dbGetUnsyncedExpenses(userId);
+      for (const e of unsynced) {
+        const { error } = await supabase.from('expenses').upsert(expenseToRemote(e));
+        if (!error) await dbMarkExpenseSynced(e.id);
+      }
+
+      const { data, error } = await supabase
         .from('expenses')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: false })
         .limit(500);
-      if (data) {
-        const mapped = data.map(remoteToExpense);
-        for (const e of mapped) await dbInsertExpense(e);
-        set({ expenses: mapped });
-      }
+      if (error) return;
+
+      const remote = data.map(remoteToExpense);
+      for (const e of remote) await dbInsertExpense(e, true);
+
+      const stillUnsynced = await dbGetUnsyncedExpenses(userId);
+      const remoteIds = new Set(remote.map(e => e.id));
+      const preserved = stillUnsynced.filter(e => !remoteIds.has(e.id));
+
+      set({ expenses: [...remote, ...preserved] });
     } finally {
       set({ syncing: false });
     }

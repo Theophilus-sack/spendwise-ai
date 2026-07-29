@@ -4,6 +4,7 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
 import { authenticate, AuthError } from '../_shared/auth.ts';
 import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
 import { requireString, ValidationError } from '../_shared/validate.ts';
+import { sendPush } from '../_shared/push.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
 const ANOMALY_THRESHOLD     = 3.5;
@@ -78,6 +79,14 @@ Category: ${expense.category}, Amount: ${expense.currency} ${expense.amount}, Ty
       category_median:    median,
       category_mad:       mad,
       modified_z_score:   modifiedZScore,
+    });
+
+    const categoryLabel = expense.category.charAt(0).toUpperCase() + expense.category.slice(1);
+    await sendPush(supabase, expense.user_id, {
+      type: 'anomaly',
+      title: `Unusual ${categoryLabel} expense`,
+      body: message || `${expense.currency} ${expense.amount} is higher than your usual ${expense.category} spending.`,
+      data: { expenseId, category: expense.category, modifiedZScore },
     });
 
     return json({ isAnomaly: true, modifiedZScore, median, mad, message });

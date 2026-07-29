@@ -12,22 +12,13 @@ import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
 import { Card }            from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
-import { formatCurrency, getCategoryEmoji, getCategoryLabel } from '@spendwise/shared';
+import { formatCurrency, getCategoryEmoji, getCategoryLabel, SPENDING_ALTERNATIVES } from '@spendwise/shared';
 import type { AppStackNavProp } from '@/navigation/types';
 import type { ExpenseCategory } from '@spendwise/shared';
 
 const ADJUSTABLE_CATEGORIES: ExpenseCategory[] = [
   'food', 'transport', 'entertainment', 'shopping', 'groceries', 'health',
 ];
-
-const ALTERNATIVES: Record<string, string[]> = {
-  food:          ['Cook at home instead of eating out', 'Use meal-prep to reduce daily food cost', 'Try local chop bars instead of restaurants'],
-  transport:     ['Use trotro instead of Uber for short trips', 'Carpool with colleagues', 'Walk or cycle for trips under 2 km'],
-  entertainment: ['Use free streaming trials before paying', 'Explore free community events', 'Share subscriptions with family'],
-  shopping:      ['Buy from local markets instead of malls', 'Wait for sales before non-urgent purchases', 'Buy second-hand for non-essentials'],
-  groceries:     ['Buy in bulk from wholesale markets', 'Switch to store-brand products', 'Plan meals to reduce food waste'],
-  health:        ['Use NHIS-covered facilities for check-ups', 'Buy generic medications', 'Focus on preventive health habits'],
-};
 
 export function WhatIfScreen() {
   const nav = useNavigation<AppStackNavProp>();
@@ -176,7 +167,7 @@ export function WhatIfScreen() {
 
               {isOpen && (
                 <View style={styles.altList}>
-                  {(ALTERNATIVES[cat] ?? []).map((alt, i) => (
+                  {(SPENDING_ALTERNATIVES[cat] ?? []).map((alt, i) => (
                     <View key={i} style={styles.altRow}>
                       <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
                       <Text style={styles.altText}>{alt}</Text>

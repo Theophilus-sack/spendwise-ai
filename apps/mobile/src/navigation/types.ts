@@ -39,8 +39,6 @@ export type AppStackParamList = {
   Income:            undefined;
   AddIncome:         undefined;
   Debts:             undefined;
-  DebtDetail:        { debtId: string };
-  AddDebt:           undefined;
   Analytics:         undefined;
   Forecast:          undefined;
   WhatIfSimulator:   undefined;
@@ -73,4 +71,3 @@ export type SignUpScreenProps  = NativeStackScreenProps<AuthStackParamList, 'Sig
 export type AddExpenseProps    = NativeStackScreenProps<AppStackParamList, 'AddExpense'>;
 export type AIAdvisorProps     = NativeStackScreenProps<AppStackParamList, 'AIAdvisor'>;
 export type GoalDetailProps    = NativeStackScreenProps<AppStackParamList, 'GoalDetail'>;
-export type DebtDetailProps    = NativeStackScreenProps<AppStackParamList, 'DebtDetail'>;

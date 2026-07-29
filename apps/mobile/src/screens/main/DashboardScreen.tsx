@@ -11,6 +11,7 @@ import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
 import { useIncomeStore }  from '@/store/incomeStore';
+import { useWeeklyReflectionStore } from '@/store/weeklyReflectionStore';
 import { StatCard, Card, BudgetBar } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
@@ -27,6 +28,7 @@ export function DashboardScreen() {
   } = useExpenseStore();
   const { budgets, load: loadBudgets }               = useBudgetStore();
   const { entries, load: loadIncome, getTotalThisMonth: getIncomeThisMonth } = useIncomeStore();
+  const { current: currentReflection, streak: reflectionStreak, load: loadReflection } = useWeeklyReflectionStore();
 
   const [coachDismissed, setCoachDismissed] = useState(false);
 
@@ -43,7 +45,7 @@ export function DashboardScreen() {
 
   const refresh = useCallback(async () => {
     if (!user) return;
-    await Promise.all([loadExpenses(user.id), loadBudgets(user.id), loadIncome(user.id)]);
+    await Promise.all([loadExpenses(user.id), loadBudgets(user.id), loadIncome(user.id), loadReflection(user.id)]);
   }, [user]);
 
   useEffect(() => { refresh(); }, []);
@@ -113,6 +115,23 @@ export function DashboardScreen() {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* ── Weekly Reflection prompt ── */}
+        <TouchableOpacity
+          style={[styles.reflectionPill, currentReflection && styles.reflectionPillDone]}
+          onPress={() => nav.navigate('WeeklyReflection', {})}
+          activeOpacity={0.85}
+        >
+          <Ionicons
+            name={currentReflection ? 'checkmark-circle' : 'sync-outline'}
+            size={16}
+            color={currentReflection ? Colors.success : Colors.primary}
+          />
+          <Text style={[styles.reflectionPillText, currentReflection && { color: Colors.success }]}>
+            {currentReflection ? 'Reflected this week' : 'Weekly Reflection'}
+          </Text>
+          {reflectionStreak > 0 && <Text style={styles.reflectionStreakText}>🔥 {reflectionStreak}</Text>}
+        </TouchableOpacity>
 
         {/* ── Balance Hero Card ── */}
         <LinearGradient
@@ -338,7 +357,7 @@ export function DashboardScreen() {
           {recentExpenses.length > 0 ? (
             recentExpenses.map(e => (
               <View key={e.id} style={styles.txRow}>
-                <View style={[styles.txIcon, { backgroundColor: Colors.categories[e.category as keyof typeof Colors.categories] + '22' }]}>
+                <View style={[styles.txIcon, { backgroundColor: (Colors.categories[e.category as keyof typeof Colors.categories] ?? Colors.textTertiary) + '22' }]}>
                   <Text style={styles.txEmoji}>{getCategoryEmoji(e.category)}</Text>
                 </View>
                 <View style={styles.txInfo}>
@@ -414,6 +433,11 @@ const styles = StyleSheet.create({
   date:          { fontSize: Typography.sm, color: Colors.textSecondary, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: Spacing.sm },
   iconBtn:       { width: 38, height: 38, borderRadius: Radius.full, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', ...Shadows.sm },
+
+  reflectionPill:     { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginTop: -Spacing.sm, ...Shadows.sm },
+  reflectionPillDone: { backgroundColor: Colors.success + '12' },
+  reflectionPillText: { fontSize: Typography.xs, fontWeight: Typography.semibold, color: Colors.primary },
+  reflectionStreakText: { fontSize: Typography.xs, fontWeight: Typography.bold, color: Colors.accentDark },
 
   heroCard:      { borderRadius: Radius.xl, padding: Spacing.lg, gap: Spacing.md, ...Shadows.primary },
   heroLabel:     { fontSize: Typography.sm, color: 'rgba(255,255,255,0.75)', fontWeight: Typography.medium },

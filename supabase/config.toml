@@ -55,3 +55,20 @@ verify_jwt = true
 
 [functions.parse-nlp-expense]
 verify_jwt = true
+
+[functions.delete-account]
+verify_jwt = true
+
+[functions.check-budget-alert]
+verify_jwt = true
+
+[functions.weekly-reflection]
+verify_jwt = true
+
+# Cron-only functions: gated by a shared x-cron-secret header instead of a
+# user JWT, since no real user session should ever be able to call these.
+[functions.weekly-digest]
+verify_jwt = false
+
+[functions.debt-reminders]
+verify_jwt = false

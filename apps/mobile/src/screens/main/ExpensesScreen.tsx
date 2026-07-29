@@ -105,7 +105,7 @@ export function ExpensesScreen() {
             onLongPress={() => confirmDelete(e)}
             activeOpacity={0.8}
           >
-            <View style={[styles.expIcon, { backgroundColor: Colors.categories[e.category as keyof typeof Colors.categories] + '22' }]}>
+            <View style={[styles.expIcon, { backgroundColor: (Colors.categories[e.category as keyof typeof Colors.categories] ?? Colors.textTertiary) + '22' }]}>
               <Text style={styles.expEmoji}>{getCategoryEmoji(e.category)}</Text>
             </View>
             <View style={styles.expInfo}>

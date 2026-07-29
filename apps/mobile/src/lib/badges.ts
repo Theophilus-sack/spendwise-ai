@@ -9,16 +9,20 @@ export interface BadgeEvalInput {
   monthlyIncome: number;
   disciplineGrade: 'A' | 'B' | 'C' | 'D' | 'F' | null;
   hasAiConversation: boolean;
+  hasDebtPayment: boolean;
 }
 
 /**
  * Evaluates every badge against the user's real, currently-loaded data.
- * Two badges (`debt_slayer`, `analyzer`) always resolve false — the features
- * they track (debt tracking, analytics usage) don't exist in the app yet, so
- * an honest "locked" is correct rather than fabricating a signal for them.
+ * `analyzer` always resolves false — there's no usage-tracking for the
+ * Analytics screen yet, so an honest "locked" is correct rather than
+ * fabricating a signal for it.
  */
 export function evaluateBadges(input: BadgeEvalInput): Record<BadgeId, boolean> {
-  const { expenses, goals, budgets, incomeEntries, monthlyIncome, disciplineGrade, hasAiConversation } = input;
+  const {
+    expenses, goals, budgets, incomeEntries, monthlyIncome,
+    disciplineGrade, hasAiConversation, hasDebtPayment,
+  } = input;
 
   const monthStart = startOfMonthISO();
   const thisMonthExpenses = expenses.filter(e => e.date >= monthStart);
@@ -48,7 +52,7 @@ export function evaluateBadges(input: BadgeEvalInput): Record<BadgeId, boolean> 
     goal_setter:     goals.length > 0,
     goal_halfway:    goals.some(g => g.targetAmount > 0 && g.currentAmount / g.targetAmount >= 0.5),
     goal_crusher:    goals.some(g => g.status === 'completed' || (g.targetAmount > 0 && g.currentAmount >= g.targetAmount)),
-    debt_slayer:     false,
+    debt_slayer:     hasDebtPayment,
     discipline_a:    disciplineGrade === 'A',
     no_spend_day:    hasNoSpendDayThisMonth(loggedDates),
     early_bird:      expenses.some(e => !!e.timeOfDay && e.timeOfDay < '08:00'),

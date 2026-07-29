@@ -28,6 +28,7 @@ export function AchievementsScreen() {
   const loadDiscipline  = useDisciplineStore(s => s.load);
 
   const [hasAiConversation, setHasAiConversation] = useState(false);
+  const [hasDebtPayment,    setHasDebtPayment]    = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
@@ -35,16 +36,18 @@ export function AchievementsScreen() {
     let cancelled = false;
 
     (async () => {
-      const [, , , , , aiCheck] = await Promise.all([
+      const [, , , , , aiCheck, debtPaymentCheck] = await Promise.all([
         loadExpenses(user.id),
         loadBudgets(user.id),
         loadGoals(user.id),
         loadIncome(user.id),
         loadDiscipline(user.id),
         supabase.from('ai_conversations').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
+        supabase.from('debt_payments').select('id', { count: 'exact', head: true }).eq('user_id', user.id),
       ]);
       if (cancelled) return;
       setHasAiConversation((aiCheck.count ?? 0) > 0);
+      setHasDebtPayment((debtPaymentCheck.count ?? 0) > 0);
       setReady(true);
     })();
 
@@ -70,6 +73,7 @@ export function AchievementsScreen() {
     monthlyIncome: profile?.monthlyIncome ?? 0,
     disciplineGrade: grade,
     hasAiConversation,
+    hasDebtPayment,
   });
   const unlockedCount = badgeList.filter(b => unlocked[b.id]).length;
 

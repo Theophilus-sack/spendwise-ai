@@ -2,6 +2,7 @@ import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { supabase } from "@/lib/supabase";
+import { registerForPushNotifications } from "@/lib/notifications";
 import { useAuthStore } from "@/store/authStore";
 import { AuthNavigator } from "./AuthNavigator";
 import { OnboardingNavigator } from "./OnboardingNavigator";
@@ -11,7 +12,7 @@ import type { RootStackParamList } from "./types";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, profile, loading, setSession, fetchProfile } =
+  const { session, user, profile, loading, setSession, fetchProfile } =
     useAuthStore();
 
   useEffect(() => {
@@ -32,10 +33,20 @@ export function RootNavigator() {
     return () => subscription.unsubscribe();
   }, []);
 
-  if (loading) return null; // Splash screen handles this
-
   const needsOnboarding = session && profile && !profile.onboardingCompleted;
   const isAuthenticated = session && profile?.onboardingCompleted;
+
+  // Every hook must run on every render regardless of `loading` — this used
+  // to sit after the early return below, which meant React saw a different
+  // number of hooks between the loading and loaded renders and threw
+  // "Rendered more hooks than during the previous render."
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      registerForPushNotifications(user.id);
+    }
+  }, [isAuthenticated, user?.id]);
+
+  if (loading) return null; // Splash screen handles this
 
   return (
     <NavigationContainer>

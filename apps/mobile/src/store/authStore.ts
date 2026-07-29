@@ -41,7 +41,14 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   setProfile: (profile) => set({ profile }),
 
   signOut: async () => {
-    await supabase.auth.signOut();
+    // The remote call can legitimately fail (e.g. the session's account was
+    // just deleted server-side) — local cleanup must still happen regardless,
+    // otherwise the app is stuck showing a dead session with no way out.
+    try {
+      await supabase.auth.signOut();
+    } catch {
+      // ignored — falling through to local cleanup below either way
+    }
     resetAllUserStores();
     await dbClearAll();
     set({ session: null, user: null, profile: null });

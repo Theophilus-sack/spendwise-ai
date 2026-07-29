@@ -1,5 +1,5 @@
 import * as SQLite from 'expo-sqlite';
-import type { Expense, Budget, Goal, IncomeEntry, StreakData } from '@spendwise/shared';
+import type { Expense, Budget, Goal, IncomeEntry, StreakData, Debt, DebtPayment } from '@spendwise/shared';
 
 let _db: SQLite.SQLiteDatabase | null = null;
 
@@ -81,6 +81,37 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       created_at   TEXT NOT NULL
     );
 
+    CREATE TABLE IF NOT EXISTS debts (
+      id                TEXT PRIMARY KEY,
+      user_id           TEXT NOT NULL,
+      label             TEXT NOT NULL,
+      debt_type         TEXT NOT NULL,
+      principal_amount  REAL NOT NULL,
+      current_balance   REAL NOT NULL,
+      interest_rate_pct REAL NOT NULL DEFAULT 0,
+      min_payment       REAL,
+      due_day_of_month  INTEGER,
+      lender_name       TEXT,
+      start_date        TEXT,
+      end_date          TEXT,
+      status            TEXT NOT NULL DEFAULT 'active',
+      notes             TEXT,
+      synced            INTEGER NOT NULL DEFAULT 0,
+      created_at        TEXT NOT NULL,
+      updated_at        TEXT NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS debt_payments (
+      id         TEXT PRIMARY KEY,
+      debt_id    TEXT NOT NULL,
+      user_id    TEXT NOT NULL,
+      amount     REAL NOT NULL,
+      date       TEXT NOT NULL,
+      notes      TEXT,
+      synced     INTEGER NOT NULL DEFAULT 0,
+      created_at TEXT NOT NULL
+    );
+
     CREATE TABLE IF NOT EXISTS streak (
       user_id          TEXT PRIMARY KEY,
       current_streak   INTEGER NOT NULL DEFAULT 0,
@@ -101,6 +132,7 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(user_id, date DESC);
     CREATE INDEX IF NOT EXISTS idx_expenses_category  ON expenses(user_id, category);
     CREATE INDEX IF NOT EXISTS idx_sync_queue_table   ON sync_queue(table_name);
+    CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id, date DESC);
   `);
 }
 
@@ -117,6 +149,8 @@ export async function dbClearAll(): Promise<void> {
     DELETE FROM budgets;
     DELETE FROM goals;
     DELETE FROM income_entries;
+    DELETE FROM debts;
+    DELETE FROM debt_payments;
     DELETE FROM streak;
     DELETE FROM sync_queue;
   `);
@@ -124,21 +158,24 @@ export async function dbClearAll(): Promise<void> {
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
-export async function dbInsertExpense(expense: Expense): Promise<void> {
+/** `synced` should be true only when writing data that just came from the
+ *  server — new local writes default to false so a failed/offline push to
+ *  Supabase can be detected and retried instead of silently disappearing. */
+export async function dbInsertExpense(expense: Expense, synced = false): Promise<void> {
   const db = await getDB();
   await db.runAsync(
     `INSERT OR REPLACE INTO expenses
      (id, user_id, amount, currency, category, merchant_name, payment_method,
       mobile_money_type, description, notes, date, time_of_day, is_recurring,
       roundup_amount, ai_categorized, ai_confidence, synced, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`,
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [expense.id, expense.userId, expense.amount, expense.currency,
      expense.category, expense.merchantName ?? null, expense.paymentMethod,
      expense.mobileMoneyType ?? null, expense.description ?? null,
      expense.notes ?? null, expense.date, expense.timeOfDay ?? null,
      expense.isRecurring ? 1 : 0, expense.roundupAmount,
      expense.aiCategorized ? 1 : 0, expense.aiConfidence ?? null,
-     expense.createdAt, expense.updatedAt],
+     synced ? 1 : 0, expense.createdAt, expense.updatedAt],
   );
 }
 
@@ -149,6 +186,19 @@ export async function dbGetExpenses(userId: string, limit = 500): Promise<Expens
     [userId, limit],
   );
   return rows.map(rowToExpense);
+}
+
+export async function dbGetUnsyncedExpenses(userId: string): Promise<Expense[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM expenses WHERE user_id = ? AND synced = 0`, [userId],
+  );
+  return rows.map(rowToExpense);
+}
+
+export async function dbMarkExpenseSynced(id: string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(`UPDATE expenses SET synced = 1 WHERE id = ?`, [id]);
 }
 
 export async function dbDeleteExpense(id: string): Promise<void> {
@@ -224,6 +274,55 @@ export async function dbUpsertIncome(entry: IncomeEntry): Promise<void> {
   );
 }
 
+// ─── Debts ────────────────────────────────────────────────────────────────────
+
+export async function dbGetDebts(userId: string): Promise<Debt[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM debts WHERE user_id = ? ORDER BY status ASC, current_balance DESC`, [userId],
+  );
+  return rows.map(rowToDebt);
+}
+
+export async function dbUpsertDebt(debt: Debt): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO debts
+     (id, user_id, label, debt_type, principal_amount, current_balance, interest_rate_pct,
+      min_payment, due_day_of_month, lender_name, start_date, end_date, status, notes,
+      synced, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,0,?,?)`,
+    [debt.id, debt.userId, debt.label, debt.debtType, debt.principalAmount, debt.currentBalance,
+     debt.interestRatePct, debt.minPayment ?? null, debt.dueDayOfMonth ?? null,
+     debt.lenderName ?? null, debt.startDate ?? null, debt.endDate ?? null, debt.status,
+     debt.notes ?? null, debt.createdAt, debt.updatedAt],
+  );
+}
+
+export async function dbDeleteDebt(id: string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(`DELETE FROM debts WHERE id = ?`, [id]);
+  await db.runAsync(`DELETE FROM debt_payments WHERE debt_id = ?`, [id]);
+}
+
+export async function dbGetDebtPayments(debtId: string): Promise<DebtPayment[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<Record<string, unknown>>(
+    `SELECT * FROM debt_payments WHERE debt_id = ? ORDER BY date DESC`, [debtId],
+  );
+  return rows.map(rowToDebtPayment);
+}
+
+export async function dbInsertDebtPayment(payment: DebtPayment): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO debt_payments (id, debt_id, user_id, amount, date, notes, synced, created_at)
+     VALUES (?,?,?,?,?,?,0,?)`,
+    [payment.id, payment.debtId, payment.userId, payment.amount, payment.date,
+     payment.notes ?? null, payment.createdAt],
+  );
+}
+
 // ─── Streak ───────────────────────────────────────────────────────────────────
 
 export async function dbGetStreak(userId: string): Promise<StreakData | null> {
@@ -291,6 +390,32 @@ function rowToGoal(row: Record<string, unknown>): Goal {
     roundupEnabled: Number(row.roundup_enabled) === 1,
     status: String(row.status) as any,
     createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+  };
+}
+
+function rowToDebt(row: Record<string, unknown>): Debt {
+  return {
+    id: String(row.id), userId: String(row.user_id),
+    label: String(row.label), debtType: String(row.debt_type) as any,
+    principalAmount: Number(row.principal_amount), currentBalance: Number(row.current_balance),
+    interestRatePct: Number(row.interest_rate_pct ?? 0),
+    minPayment: row.min_payment != null ? Number(row.min_payment) : undefined,
+    dueDayOfMonth: row.due_day_of_month != null ? Number(row.due_day_of_month) : undefined,
+    lenderName: row.lender_name ? String(row.lender_name) : undefined,
+    startDate: row.start_date ? String(row.start_date) : undefined,
+    endDate: row.end_date ? String(row.end_date) : undefined,
+    status: String(row.status) as any,
+    notes: row.notes ? String(row.notes) : undefined,
+    createdAt: String(row.created_at), updatedAt: String(row.updated_at),
+  };
+}
+
+function rowToDebtPayment(row: Record<string, unknown>): DebtPayment {
+  return {
+    id: String(row.id), debtId: String(row.debt_id), userId: String(row.user_id),
+    amount: Number(row.amount), date: String(row.date),
+    notes: row.notes ? String(row.notes) : undefined,
+    createdAt: String(row.created_at),
   };
 }
 
