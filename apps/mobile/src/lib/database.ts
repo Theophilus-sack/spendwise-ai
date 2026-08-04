@@ -122,17 +122,18 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     );
 
     CREATE TABLE IF NOT EXISTS sync_queue (
-      id         INTEGER PRIMARY KEY AUTOINCREMENT,
       table_name TEXT NOT NULL,
       record_id  TEXT NOT NULL,
       operation  TEXT NOT NULL,
-      payload    TEXT NOT NULL,
-      created_at TEXT NOT NULL
+      payload    TEXT,
+      attempts   INTEGER NOT NULL DEFAULT 0,
+      last_error TEXT,
+      created_at TEXT NOT NULL,
+      PRIMARY KEY (table_name, record_id)
     );
 
     CREATE INDEX IF NOT EXISTS idx_expenses_user_date ON expenses(user_id, date DESC);
     CREATE INDEX IF NOT EXISTS idx_expenses_category  ON expenses(user_id, category);
-    CREATE INDEX IF NOT EXISTS idx_sync_queue_table   ON sync_queue(table_name);
     CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id, date DESC);
   `);
 
@@ -142,6 +143,31 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
   // the expected/harmless case, so it's swallowed rather than surfaced.
   try {
     await db.execAsync(`ALTER TABLE budgets ADD COLUMN description TEXT;`);
+  } catch {}
+
+  // sync_queue's shape changed (composite table_name+record_id primary key,
+  // new attempts/last_error columns) as part of the offline-sync rebuild.
+  // Safe to drop and recreate on every existing install rather than migrate
+  // in place: the table was created but never actually written to anywhere
+  // in the app before this rebuild, so there is no real data to lose here.
+  try {
+    const cols = await db.getAllAsync<{ name: string }>(`PRAGMA table_info(sync_queue)`);
+    const hasNewShape = cols.some(c => c.name === 'attempts');
+    if (!hasNewShape) {
+      await db.execAsync(`
+        DROP TABLE IF EXISTS sync_queue;
+        CREATE TABLE sync_queue (
+          table_name TEXT NOT NULL,
+          record_id  TEXT NOT NULL,
+          operation  TEXT NOT NULL,
+          payload    TEXT,
+          attempts   INTEGER NOT NULL DEFAULT 0,
+          last_error TEXT,
+          created_at TEXT NOT NULL,
+          PRIMARY KEY (table_name, record_id)
+        );
+      `);
+    }
   } catch {}
 }
 
@@ -167,9 +193,12 @@ export async function dbClearAll(): Promise<void> {
 
 // ─── Expenses ─────────────────────────────────────────────────────────────────
 
-/** `synced` should be true only when writing data that just came from the
- *  server — new local writes default to false so a failed/offline push to
- *  Supabase can be detected and retried instead of silently disappearing. */
+/** The `synced` column itself is no longer read anywhere — offline-pending
+ *  detection now goes through `sync_queue` (see syncEngine.ts), which is
+ *  uniform across every table instead of expenses having its own bespoke
+ *  mechanism. Kept as a write-only column rather than migrated away, same as
+ *  every other table, since it's harmless and there's no real data at stake
+ *  in changing it. */
 export async function dbInsertExpense(expense: Expense, synced = false): Promise<void> {
   const db = await getDB();
   await db.runAsync(
@@ -195,19 +224,6 @@ export async function dbGetExpenses(userId: string, limit = 500): Promise<Expens
     [userId, limit],
   );
   return rows.map(rowToExpense);
-}
-
-export async function dbGetUnsyncedExpenses(userId: string): Promise<Expense[]> {
-  const db = await getDB();
-  const rows = await db.getAllAsync<Record<string, unknown>>(
-    `SELECT * FROM expenses WHERE user_id = ? AND synced = 0`, [userId],
-  );
-  return rows.map(rowToExpense);
-}
-
-export async function dbMarkExpenseSynced(id: string): Promise<void> {
-  const db = await getDB();
-  await db.runAsync(`UPDATE expenses SET synced = 1 WHERE id = ?`, [id]);
 }
 
 export async function dbDeleteExpense(id: string): Promise<void> {
@@ -237,6 +253,11 @@ export async function dbUpsertBudget(budget: Budget): Promise<void> {
   );
 }
 
+export async function dbDeleteBudget(id: string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(`DELETE FROM budgets WHERE id = ?`, [id]);
+}
+
 // ─── Goals ────────────────────────────────────────────────────────────────────
 
 export async function dbGetGoals(userId: string): Promise<Goal[]> {
@@ -261,6 +282,11 @@ export async function dbUpsertGoal(goal: Goal): Promise<void> {
   );
 }
 
+export async function dbDeleteGoal(id: string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(`DELETE FROM goals WHERE id = ?`, [id]);
+}
+
 // ─── Income ───────────────────────────────────────────────────────────────────
 
 export async function dbGetIncome(userId: string): Promise<IncomeEntry[]> {
@@ -281,6 +307,11 @@ export async function dbUpsertIncome(entry: IncomeEntry): Promise<void> {
      entry.amount, entry.currency, entry.date, entry.isRecurring ? 1 : 0,
      entry.interval ?? null, entry.notes ?? null, entry.createdAt],
   );
+}
+
+export async function dbDeleteIncome(id: string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(`DELETE FROM income_entries WHERE id = ?`, [id]);
 }
 
 // ─── Debts ────────────────────────────────────────────────────────────────────
@@ -330,6 +361,90 @@ export async function dbInsertDebtPayment(payment: DebtPayment): Promise<void> {
     [payment.id, payment.debtId, payment.userId, payment.amount, payment.date,
      payment.notes ?? null, payment.createdAt],
   );
+}
+
+// ─── Sync Queue ───────────────────────────────────────────────────────────────
+//
+// The offline-sync mechanism for every client-mutated table. A mutation that
+// can't reach Supabase (see apps/mobile/src/lib/syncEngine.ts) enqueues here
+// instead of losing the write; `table_name` doubles as the real Supabase
+// table name, so the queue never needs per-table mapping knowledge — just the
+// already-fully-formed remote-shape payload captured at the moment of the
+// original mutation. Keyed by (table_name, record_id): a second offline edit
+// to the same row simply replaces the still-queued payload rather than
+// accumulating stale duplicate entries.
+
+export interface SyncQueueItem {
+  tableName: string;
+  recordId: string;
+  operation: 'upsert' | 'delete';
+  payload: Record<string, unknown> | null;
+  attempts: number;
+  lastError: string | null;
+  createdAt: string;
+}
+
+export async function dbEnqueueSync(
+  tableName: string,
+  recordId: string,
+  operation: 'upsert' | 'delete',
+  payload: Record<string, unknown> | null,
+): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `INSERT OR REPLACE INTO sync_queue (table_name, record_id, operation, payload, attempts, last_error, created_at)
+     VALUES (?,?,?,?,0,NULL,?)`,
+    [tableName, recordId, operation, payload ? JSON.stringify(payload) : null, new Date().toISOString()],
+  );
+}
+
+export async function dbGetQueue(): Promise<SyncQueueItem[]> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<Record<string, unknown>>(`SELECT * FROM sync_queue ORDER BY created_at ASC`);
+  return rows.map(r => ({
+    tableName: String(r.table_name),
+    recordId:  String(r.record_id),
+    operation: String(r.operation) as 'upsert' | 'delete',
+    payload:   r.payload ? JSON.parse(String(r.payload)) : null,
+    attempts:  Number(r.attempts ?? 0),
+    lastError: r.last_error ? String(r.last_error) : null,
+    createdAt: String(r.created_at),
+  }));
+}
+
+/** What `load()` needs to know per table: which record ids have a pending
+ *  upsert (keep the local version instead of the just-fetched remote one)
+ *  and which have a pending delete (exclude entirely, remote or local). */
+export async function dbGetQueuedIdsByOperation(
+  tableName: string,
+): Promise<{ upsertIds: Set<string>; deleteIds: Set<string> }> {
+  const db = await getDB();
+  const rows = await db.getAllAsync<{ record_id: string; operation: string }>(
+    `SELECT record_id, operation FROM sync_queue WHERE table_name = ?`, [tableName],
+  );
+  const upsertIds = new Set<string>();
+  const deleteIds = new Set<string>();
+  for (const r of rows) (r.operation === 'delete' ? deleteIds : upsertIds).add(r.record_id);
+  return { upsertIds, deleteIds };
+}
+
+export async function dbRemoveFromQueue(tableName: string, recordId: string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(`DELETE FROM sync_queue WHERE table_name = ? AND record_id = ?`, [tableName, recordId]);
+}
+
+export async function dbBumpQueueAttempt(tableName: string, recordId: string, errorMessage: string): Promise<void> {
+  const db = await getDB();
+  await db.runAsync(
+    `UPDATE sync_queue SET attempts = attempts + 1, last_error = ? WHERE table_name = ? AND record_id = ?`,
+    [errorMessage, tableName, recordId],
+  );
+}
+
+export async function dbGetQueueCount(): Promise<number> {
+  const db = await getDB();
+  const row = await db.getFirstAsync<{ count: number }>(`SELECT COUNT(*) as count FROM sync_queue`);
+  return row?.count ?? 0;
 }
 
 // ─── Streak ───────────────────────────────────────────────────────────────────

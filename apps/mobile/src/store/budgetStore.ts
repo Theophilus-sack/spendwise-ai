@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
-import { dbGetBudgets, dbUpsertBudget } from '@/lib/database';
+import { dbGetBudgets, dbUpsertBudget, dbDeleteBudget, dbGetQueuedIdsByOperation } from '@/lib/database';
+import { writeAndSync } from '@/lib/syncEngine';
+import { mergeSyncedRows } from '@spendwise/shared';
 import type { Budget } from '@spendwise/shared';
 
 interface BudgetState {
@@ -21,12 +23,18 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
     try {
       const local = await dbGetBudgets(userId);
       set({ budgets: local });
+
       const { data } = await supabase.from('budgets').select('*').eq('user_id', userId);
-      if (data) {
-        const mapped = data.map(remoteToBudget);
-        for (const b of mapped) await dbUpsertBudget(b);
-        set({ budgets: mapped });
+      if (!data) return;
+
+      const mapped = data.map(remoteToBudget);
+      const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('budgets');
+
+      for (const b of mapped) {
+        if (!upsertIds.has(b.id) && !deleteIds.has(b.id)) await dbUpsertBudget(b);
       }
+
+      set({ budgets: mergeSyncedRows(mapped, local, upsertIds, deleteIds) });
     } finally {
       set({ loading: false });
     }
@@ -43,14 +51,13 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       }
       return { budgets: [...s.budgets, budget] };
     });
-    const { error } = await supabase.from('budgets').upsert(budgetToRemote(budget));
-    if (error) throw error;
+    await writeAndSync('budgets', budget.id, 'upsert', budgetToRemote(budget));
   },
 
   deleteBudget: async (id) => {
+    await dbDeleteBudget(id);
     set(s => ({ budgets: s.budgets.filter(b => b.id !== id) }));
-    const { error } = await supabase.from('budgets').delete().eq('id', id);
-    if (error) throw error;
+    await writeAndSync('budgets', id, 'delete', null);
   },
 
   reset: () => set({ budgets: [], loading: false }),

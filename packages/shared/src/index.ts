@@ -7,3 +7,4 @@ export * from './utils';
 export * from './categorization';
 export * from './budgeting';
 export * from './literacy';
+export * from './sync';

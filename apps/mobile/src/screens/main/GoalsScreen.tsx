@@ -17,7 +17,7 @@ const EMOJI_OPTIONS = ['🏠', '🚗', '✈️', '📱', '💍', '🎓', '💰',
 
 export function GoalsScreen() {
   const { user, profile } = useAuthStore();
-  const { goals, loading, load, addGoal, updateGoal, contributeToGoal } = useGoalStore();
+  const { goals, loading, load, addGoal, updateGoal, deleteGoal, contributeToGoal } = useGoalStore();
 
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [showContribModal, setShowContribModal] = useState(false);
@@ -117,6 +117,23 @@ export function GoalsScreen() {
     setShowContribModal(true);
   };
 
+  const confirmDeleteGoal = (goal: Goal) => {
+    Alert.alert(
+      'Delete this goal?',
+      `Remove "${goal.title}"? This won't affect any expenses or income already logged.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete', style: 'destructive', onPress: () => {
+            deleteGoal(goal.id).catch(err => {
+              Alert.alert('Could not delete', err instanceof Error ? err.message : 'Please try again.');
+            });
+          },
+        },
+      ],
+    );
+  };
+
   const progressColor = (pct: number) =>
     pct >= 100 ? Colors.success : pct >= 60 ? Colors.primary : pct >= 30 ? Colors.warning : Colors.danger;
 
@@ -211,6 +228,9 @@ export function GoalsScreen() {
                       )}
                     </View>
                     <Text style={[styles.goalPct, { color }]}>{pct.toFixed(0)}%</Text>
+                    <TouchableOpacity onPress={() => confirmDeleteGoal(goal)} style={styles.deleteBtn} hitSlop={8}>
+                      <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
+                    </TouchableOpacity>
                   </View>
 
                   {/* Progress bar */}
@@ -252,6 +272,9 @@ export function GoalsScreen() {
                     <Text style={{ fontSize: Typography.xs, color: Colors.success, fontWeight: Typography.semibold }}>Goal reached!</Text>
                   </View>
                   <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+                  <TouchableOpacity onPress={() => confirmDeleteGoal(goal)} style={styles.deleteBtn} hitSlop={8}>
+                    <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
+                  </TouchableOpacity>
                 </View>
                 <View style={styles.progressTrack}>
                   <View style={[styles.progressFill, { width: '100%', backgroundColor: Colors.success }]} />
@@ -386,6 +409,7 @@ const styles = StyleSheet.create({
   goalTitle:    { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
   goalDeadline: { fontSize: Typography.xs, marginTop: 2 },
   goalPct:      { fontSize: Typography.lg, fontWeight: Typography.bold },
+  deleteBtn:    { padding: 4 },
 
   progressTrack: { height: 10, borderRadius: Radius.full, backgroundColor: Colors.border, overflow: 'hidden' },
   progressFill:  { height: 10, borderRadius: Radius.full },

@@ -1,6 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
-import { dbGetGoals, dbUpsertGoal } from '@/lib/database';
+import { dbGetGoals, dbUpsertGoal, dbDeleteGoal, dbGetQueuedIdsByOperation } from '@/lib/database';
+import { writeAndSync } from '@/lib/syncEngine';
+import { mergeSyncedRows } from '@spendwise/shared';
 import type { Goal } from '@spendwise/shared';
 
 interface GoalState {
@@ -9,6 +11,7 @@ interface GoalState {
   load:         (userId: string) => Promise<void>;
   addGoal:      (goal: Goal) => Promise<void>;
   updateGoal:   (goal: Goal) => Promise<void>;
+  deleteGoal:   (id: string) => Promise<void>;
   contributeToGoal: (goalId: string, amount: number) => Promise<void>;
   reset:        () => void;
 }
@@ -22,12 +25,18 @@ export const useGoalStore = create<GoalState>((set, get) => ({
     try {
       const local = await dbGetGoals(userId);
       set({ goals: local });
-      const { data } = await supabase.from('goals').select('*').eq('user_id', userId).neq('status', 'deleted');
-      if (data) {
-        const mapped = data.map(remoteToGoal);
-        for (const g of mapped) await dbUpsertGoal(g);
-        set({ goals: mapped });
+
+      const { data } = await supabase.from('goals').select('*').eq('user_id', userId);
+      if (!data) return;
+
+      const mapped = data.map(remoteToGoal);
+      const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('goals');
+
+      for (const g of mapped) {
+        if (!upsertIds.has(g.id) && !deleteIds.has(g.id)) await dbUpsertGoal(g);
       }
+
+      set({ goals: mergeSyncedRows(mapped, local, upsertIds, deleteIds) });
     } finally {
       set({ loading: false });
     }
@@ -36,15 +45,19 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   addGoal: async (goal) => {
     await dbUpsertGoal(goal);
     set(s => ({ goals: [goal, ...s.goals] }));
-    const { error } = await supabase.from('goals').upsert(goalToRemote(goal));
-    if (error) throw error;
+    await writeAndSync('goals', goal.id, 'upsert', goalToRemote(goal));
   },
 
   updateGoal: async (goal) => {
     await dbUpsertGoal(goal);
     set(s => ({ goals: s.goals.map(g => g.id === goal.id ? goal : g) }));
-    const { error } = await supabase.from('goals').upsert(goalToRemote(goal));
-    if (error) throw error;
+    await writeAndSync('goals', goal.id, 'upsert', goalToRemote(goal));
+  },
+
+  deleteGoal: async (id) => {
+    await dbDeleteGoal(id);
+    set(s => ({ goals: s.goals.filter(g => g.id !== id) }));
+    await writeAndSync('goals', id, 'delete', null);
   },
 
   contributeToGoal: async (goalId, amount) => {

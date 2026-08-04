@@ -1,8 +1,10 @@
 import React, { useEffect } from "react";
+import { AppState } from "react-native";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { supabase } from "@/lib/supabase";
 import { registerForPushNotifications, setupNotificationResponseHandling } from "@/lib/notifications";
+import { flushQueue, startSyncListeners } from "@/lib/syncEngine";
 import { useAuthStore } from "@/store/authStore";
 import { AuthNavigator } from "./AuthNavigator";
 import { OnboardingNavigator } from "./OnboardingNavigator";
@@ -49,6 +51,25 @@ export function RootNavigator() {
       registerForPushNotifications(user.id);
     }
   }, [isAuthenticated, user?.id]);
+
+  // Offline-sync flush triggers: on launch (once authenticated), whenever
+  // connectivity comes back, and whenever the app returns to the foreground.
+  // Belt-and-suspenders on purpose — background network-change events are
+  // unreliable enough across platforms that relying on just one is risky.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    flushQueue();
+    const unsubscribeReconnect = startSyncListeners();
+    const appStateSubscription = AppState.addEventListener('change', nextState => {
+      if (nextState === 'active') flushQueue();
+    });
+
+    return () => {
+      unsubscribeReconnect();
+      appStateSubscription.remove();
+    };
+  }, [isAuthenticated]);
 
   if (loading) return null; // Splash screen handles this
 

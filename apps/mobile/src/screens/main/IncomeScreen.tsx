@@ -86,6 +86,8 @@ export function IncomeScreen() {
       setName('');
       setSource('salary');
       setRecurring(false);
+    } catch (err) {
+      Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -183,7 +185,13 @@ export function IncomeScreen() {
   const handleDelete = (id: string) => {
     Alert.alert('Remove income?', 'This income entry will be removed.', [
       { text: 'Cancel', style: 'cancel' },
-      { text: 'Remove', style: 'destructive', onPress: () => deleteEntry(id) },
+      {
+        text: 'Remove', style: 'destructive', onPress: () => {
+          deleteEntry(id).catch(err => {
+            Alert.alert('Could not remove', err instanceof Error ? err.message : 'Please try again.');
+          });
+        },
+      },
     ]);
   };
 

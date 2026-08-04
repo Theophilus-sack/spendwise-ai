@@ -1,11 +1,13 @@
-import React, { useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView,
   Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase, callEdgeFunction } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
+import { useIsConnected } from '@/lib/connectivity';
+import { getPendingSyncCount, flushQueue } from '@/lib/syncEngine';
 import { Card, Button, Input } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import { CURRENCIES, SPENDING_PERSONALITIES, DISCIPLINE_STYLES } from '@spendwise/shared';
@@ -15,6 +17,16 @@ import type { AppStackNavProp } from '@/navigation/types';
 export function SettingsScreen() {
   const nav = useNavigation<AppStackNavProp>();
   const { user, profile, fetchProfile, signOut } = useAuthStore();
+
+  // ── Sync status ──────────────────────────────────────────────────────────
+  const isConnected = useIsConnected();
+  const [pendingCount, setPendingCount] = useState(0);
+
+  const refreshPendingCount = useCallback(() => {
+    getPendingSyncCount().then(setPendingCount);
+  }, []);
+
+  useFocusEffect(useCallback(() => { refreshPendingCount(); }, [refreshPendingCount]));
 
   // ── Preferences ──────────────────────────────────────────────────────────
   const [currency,     setCurrency]     = useState<Currency>(profile?.currency ?? 'GHS');
@@ -121,6 +133,31 @@ export function SettingsScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+
+          {/* ── Sync status ── */}
+          <Text style={styles.sectionTitle}>Sync Status</Text>
+          <Card style={styles.card}>
+            <View style={styles.syncRow}>
+              <View style={[styles.syncDot, { backgroundColor: isConnected ? Colors.success : Colors.danger }]} />
+              <Text style={styles.syncStatusText}>{isConnected ? 'Online' : 'Offline'}</Text>
+            </View>
+            {pendingCount > 0 ? (
+              <>
+                <Text style={styles.syncPendingText}>
+                  {pendingCount} change{pendingCount !== 1 ? 's' : ''} not yet synced — nothing is lost, this will sync automatically once you're back online.
+                </Text>
+                {isConnected && (
+                  <Button
+                    label="Sync now"
+                    variant="outline"
+                    onPress={() => flushQueue().then(refreshPendingCount)}
+                  />
+                )}
+              </>
+            ) : (
+              <Text style={styles.syncOkText}>Everything is synced.</Text>
+            )}
+          </Card>
 
           {/* ── Preferences ── */}
           <Text style={styles.sectionTitle}>Preferences</Text>
@@ -241,6 +278,12 @@ const styles = StyleSheet.create({
   card:         { gap: Spacing.md },
 
   fieldLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.text, marginTop: Spacing.xs },
+
+  syncRow:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  syncDot:         { width: 9, height: 9, borderRadius: 5 },
+  syncStatusText:  { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
+  syncPendingText: { fontSize: Typography.sm, color: Colors.textSecondary, lineHeight: Typography.sm * 1.4 },
+  syncOkText:      { fontSize: Typography.sm, color: Colors.textSecondary },
 
   chipGrid:      { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chip:          { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surfaceAlt },

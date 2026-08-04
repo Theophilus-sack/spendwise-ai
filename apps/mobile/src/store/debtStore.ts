@@ -1,7 +1,8 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
-import { dbGetDebts, dbUpsertDebt, dbDeleteDebt, dbInsertDebtPayment } from '@/lib/database';
-import { generateUUID } from '@spendwise/shared';
+import { dbGetDebts, dbUpsertDebt, dbDeleteDebt, dbInsertDebtPayment, dbGetQueuedIdsByOperation } from '@/lib/database';
+import { writeAndSync } from '@/lib/syncEngine';
+import { generateUUID, mergeSyncedRows } from '@spendwise/shared';
 import type { Debt, DebtPayment } from '@spendwise/shared';
 
 interface DebtState {
@@ -25,12 +26,18 @@ export const useDebtStore = create<DebtState>((set, get) => ({
     try {
       const local = await dbGetDebts(userId);
       set({ debts: local });
+
       const { data } = await supabase.from('debts').select('*').eq('user_id', userId);
-      if (data) {
-        const mapped = data.map(remoteToDebt);
-        for (const d of mapped) await dbUpsertDebt(d);
-        set({ debts: mapped });
+      if (!data) return;
+
+      const mapped = data.map(remoteToDebt);
+      const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('debts');
+
+      for (const d of mapped) {
+        if (!upsertIds.has(d.id) && !deleteIds.has(d.id)) await dbUpsertDebt(d);
       }
+
+      set({ debts: mergeSyncedRows(mapped, local, upsertIds, deleteIds) });
     } finally {
       set({ loading: false });
     }
@@ -39,21 +46,19 @@ export const useDebtStore = create<DebtState>((set, get) => ({
   addDebt: async (debt) => {
     await dbUpsertDebt(debt);
     set(s => ({ debts: [debt, ...s.debts] }));
-    const { error } = await supabase.from('debts').upsert(debtToRemote(debt));
-    if (error) throw error;
+    await writeAndSync('debts', debt.id, 'upsert', debtToRemote(debt));
   },
 
   updateDebt: async (debt) => {
     await dbUpsertDebt(debt);
     set(s => ({ debts: s.debts.map(d => d.id === debt.id ? debt : d) }));
-    const { error } = await supabase.from('debts').upsert(debtToRemote(debt));
-    if (error) throw error;
+    await writeAndSync('debts', debt.id, 'upsert', debtToRemote(debt));
   },
 
   deleteDebt: async (id) => {
     await dbDeleteDebt(id);
     set(s => ({ debts: s.debts.filter(d => d.id !== id) }));
-    await supabase.from('debts').delete().eq('id', id);
+    await writeAndSync('debts', id, 'delete', null);
   },
 
   recordPayment: async (debtId, amount, date, notes) => {
@@ -66,11 +71,10 @@ export const useDebtStore = create<DebtState>((set, get) => ({
       debtId, userId: debt.userId, amount, date, notes, createdAt: now,
     };
     await dbInsertDebtPayment(payment);
-    const { error } = await supabase.from('debt_payments').upsert({
+    await writeAndSync('debt_payments', payment.id, 'upsert', {
       id: payment.id, debt_id: debtId, user_id: debt.userId,
       amount, date, notes: notes ?? null, created_at: now,
     });
-    if (error) throw error;
 
     // A payment can't put the balance below zero, and clearing it to zero
     // is what actually marks the debt paid off.
