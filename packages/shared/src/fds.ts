@@ -10,7 +10,15 @@ export interface FDSInputs {
   daysLogged: number;
   daysInPeriod: number;
   previousScore: number | null;
+  /** Whether the user completed that week's reflection — adds REFLECTION_BONUS
+   *  before the final clamp, same as the live formula. */
+  hasReflection?: boolean;
 }
+
+/** Flat bonus for completing that week's reflection — see the identical
+ *  constant in supabase/functions/_shared/fds.ts for why it's kept separate
+ *  from the four weighted components rather than folded into the formula. */
+export const REFLECTION_BONUS = 2;
 
 /**
  * Financial Discipline Score — composite metric (0–100)
@@ -22,6 +30,17 @@ export interface FDSInputs {
  *   Improvement      (15%) — growth mindset; rewards progress not just absolute performance
  *
  * Smoothed with EMA (α=0.7) to prevent single-week volatility distorting the trend.
+ *
+ * IMPORTANT — this is an intentional duplicate of supabase/functions/_shared/fds.ts's
+ * `computeFDS`, not a shared import: Supabase Edge Functions run on Deno and are
+ * deployed as a self-contained bundle of just their own file tree, so they can't
+ * reach across the repo into this npm workspace package at runtime (confirmed —
+ * no edge function imports from @spendwise/shared anywhere in this codebase).
+ * This pure version exists so the formula is unit-testable and backtestable
+ * without a live Supabase connection. It was previously missing the reflection
+ * bonus the live version has, which is exactly the kind of silent drift this
+ * comment exists to prevent happening again — if you change the weights,
+ * smoothing, or bonus in one file, change it in both.
  */
 export function computeFDS(inputs: FDSInputs): FDSResult {
   const {
@@ -74,11 +93,13 @@ export function computeFDS(inputs: FDSInputs): FDSResult {
     ? emaAlpha * rawFinal + (1 - emaAlpha) * previousScore
     : rawFinal;
 
+  const reflectionBonus = inputs.hasReflection ? REFLECTION_BONUS : 0;
+
   // Final defensive clamp: components above are each already bounded to [0,1] and the
   // weights sum to 1, so this should be a no-op in practice — it exists so a future
   // caller passing an out-of-range previousScore (e.g. corrupted stored data) still
   // can't push the displayed score outside the documented 0–100 range.
-  const score = clamp(Math.round(smoothed * 10) / 10, 0, 100);
+  const score = clamp(Math.round((smoothed + reflectionBonus) * 10) / 10, 0, 100);
 
   const components: FDSComponents = {
     budgetAdherence: Math.round(budgetAdherence * 1000) / 1000,

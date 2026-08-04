@@ -67,6 +67,35 @@ export function daysBetween(dateA: string, dateB: string): number {
   return Math.round(Math.abs(b - a) / (1000 * 60 * 60 * 24));
 }
 
+/**
+ * Days from `today` until the next occurrence of `dueDayOfMonth`, clamping to
+ * the actual last day of a shorter month (e.g. due day 31 in a 30-day month
+ * lands on the 30th). Mirrors `supabase/functions/debt-reminders`' copy —
+ * pure date arithmetic that isn't expected to drift, so it's duplicated
+ * rather than shared across the Deno/npm runtime boundary those two live on.
+ */
+export function daysUntilMonthlyDue(dueDayOfMonth: number, today: Date = new Date()): number {
+  const year = today.getFullYear();
+  const month = today.getMonth();
+  const todayDay = today.getDate();
+
+  const daysInThisMonth = new Date(year, month + 1, 0).getDate();
+  const dueThisMonth = Math.min(dueDayOfMonth, daysInThisMonth);
+  if (dueThisMonth >= todayDay) return dueThisMonth - todayDay;
+
+  const daysInNextMonth = new Date(year, month + 2, 0).getDate();
+  const dueNextMonth = Math.min(dueDayOfMonth, daysInNextMonth);
+  return (daysInThisMonth - todayDay) + dueNextMonth;
+}
+
+/** The actual calendar date (YYYY-MM-DD) `daysUntilMonthlyDue` resolves to. */
+export function nextMonthlyDueDate(dueDayOfMonth: number, today: Date = new Date()): string {
+  const d = new Date(today);
+  d.setHours(0, 0, 0, 0);
+  d.setDate(d.getDate() + daysUntilMonthlyDue(dueDayOfMonth, today));
+  return toISODate(d);
+}
+
 export function formatDate(dateStr: string): string {
   const date = new Date(dateStr + 'T00:00:00');
   return date.toLocaleDateString('en-GH', { day: 'numeric', month: 'short', year: 'numeric' });

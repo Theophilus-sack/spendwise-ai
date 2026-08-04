@@ -16,6 +16,8 @@ export function ProfileScreen() {
     { icon: 'trending-up-outline', label: 'Spending Forecast', action: () => nav.navigate('Forecast') },
     { icon: 'wallet-outline',      label: 'Income',           action: () => nav.navigate('Income') },
     { icon: 'card-outline',        label: 'Debts & Loans',    action: () => nav.navigate('Debts') },
+    { icon: 'calendar-outline',    label: 'Bill Calendar',    action: () => nav.navigate('BillCalendar') },
+    { icon: 'school-outline',      label: 'Financial Literacy', action: () => nav.navigate('LiteracyHub') },
     { icon: 'trophy-outline',      label: 'Achievements',     action: () => nav.navigate('Achievements') },
     { icon: 'shield-outline',      label: 'Discipline Score', action: () => nav.navigate('ScoreDetail') },
     { icon: 'git-compare-outline', label: 'What-If Simulator',action: () => nav.navigate('WhatIfSimulator') },

@@ -26,7 +26,7 @@ function routeNotificationTap(data: Record<string, any>): void {
       navigateToTab('Budget');
       return;
     case 'debt_reminder':
-      navigateIntoApp('Debts');
+      navigateIntoApp('BillCalendar');
       return;
     case 'weekly_digest':
       navigateIntoApp('ScoreDetail');

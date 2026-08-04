@@ -16,6 +16,9 @@ import { AchievementsScreen } from '@/screens/main/AchievementsScreen';
 import { ScoreDetailScreen }  from '@/screens/main/ScoreDetailScreen';
 import { WhatIfScreen }       from '@/screens/main/WhatIfScreen';
 import { ReceiptScannerScreen } from '@/screens/main/ReceiptScannerScreen';
+import { BillCalendarScreen } from '@/screens/main/BillCalendarScreen';
+import { LiteracyHubScreen } from '@/screens/main/LiteracyHubScreen';
+import { LiteracyArticleScreen } from '@/screens/main/LiteracyArticleScreen';
 import { Colors } from '@/theme';
 import type { AppStackParamList } from './types';
 
@@ -47,6 +50,9 @@ export function AppNavigator() {
       <Stack.Screen name="Notifications"   component={NotificationsScreen}  options={{ title: 'Notifications' }} />
       <Stack.Screen name="Export"          component={ExportScreen}         options={{ title: 'Export Reports' }} />
       <Stack.Screen name="WeeklyReflection" component={WeeklyReflectionScreen} options={{ title: 'Weekly Reflection', presentation: 'modal' }} />
+      <Stack.Screen name="BillCalendar"    component={BillCalendarScreen}    options={{ headerShown: false }} />
+      <Stack.Screen name="LiteracyHub"     component={LiteracyHubScreen}     options={{ headerShown: false }} />
+      <Stack.Screen name="LiteracyArticle" component={LiteracyArticleScreen} options={{ headerShown: false }} />
     </Stack.Navigator>
   );
 }

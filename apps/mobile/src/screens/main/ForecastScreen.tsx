@@ -40,11 +40,12 @@ export function ForecastScreen() {
     }));
 
     const budgetMap = Object.fromEntries(budgets.map(b => [b.category, b.limitAmount])) as any;
+    const todayISO = now.toISOString().slice(0, 10);
 
-    const result = forecastMonthEnd(dailyTotals, day, daysTotal);
+    const result = forecastMonthEnd(dailyTotals, day, daysTotal, undefined, todayISO);
     const byCategory = forecastByCategory(
       thisMonth.map(e => ({ date: e.date, amount: e.amount, category: e.category as any })),
-      day, daysTotal, budgetMap,
+      day, daysTotal, budgetMap, todayISO,
     );
 
     setForecast({ ...result, byCategory });

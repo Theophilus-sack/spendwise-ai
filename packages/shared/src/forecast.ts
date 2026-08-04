@@ -18,12 +18,26 @@ export interface CategoryDailyTotal extends DailyTotal {
  *
  * Accuracy improves after 7+ days of data (medium confidence) and 15+ (high).
  * Below 3 days we return low confidence and should not surface the forecast prominently.
+ *
+ * The remaining-days projection is day-of-week aware when `todayISO` is
+ * supplied and there's at least a week of history: instead of multiplying a
+ * single flat rate by the count of remaining days, each remaining calendar
+ * day is weighted by that day-of-week's observed multiplier (see
+ * `computeDayOfWeekMultipliers`). This was a validated gap — a synthetic
+ * backtest (forecast.backtest.test.ts) showed a flat projection meaningfully
+ * under/over-projects for anyone whose spending clusters on particular days
+ * (weekends being the common case), since it has no way to know a spending
+ * surge is still coming just because it hasn't shown up in the days logged
+ * so far. Below a week of history, or without `todayISO`, this falls back
+ * to the original flat-rate behavior — there isn't enough data to say
+ * anything trustworthy about day-of-week patterns yet.
  */
 export function forecastMonthEnd(
   dailyTotals: DailyTotal[],
   currentDayOfMonth: number,
   daysInMonth: number,
   alpha: number = FORECAST_ALPHA,
+  todayISO?: string,
 ): ForecastResult {
   if (dailyTotals.length === 0) {
     return {
@@ -45,7 +59,24 @@ export function forecastMonthEnd(
 
   const actualToDate = dailyTotals.reduce((s, d) => s + d.amount, 0);
   const remainingDays = Math.max(daysInMonth - currentDayOfMonth, 0);
-  const projectedMonthEnd = actualToDate + weightedDailyRate * remainingDays;
+
+  const MIN_HISTORY_FOR_SEASONALITY = 7;
+  let remainingProjection = weightedDailyRate * remainingDays;
+
+  if (todayISO && n >= MIN_HISTORY_FOR_SEASONALITY && remainingDays > 0) {
+    const multipliers = computeDayOfWeekMultipliers(dailyTotals);
+    const today = new Date(`${todayISO}T00:00:00`);
+    remainingProjection = 0;
+    for (let i = 1; i <= remainingDays; i++) {
+      const futureDate = new Date(today);
+      futureDate.setDate(futureDate.getDate() + i);
+      const dow = futureDate.getDay();
+      const multiplier = multipliers[dow] ?? 1;
+      remainingProjection += weightedDailyRate * multiplier;
+    }
+  }
+
+  const projectedMonthEnd = actualToDate + remainingProjection;
 
   const confidence: ForecastResult['confidence'] =
     n >= 15 ? 'high' : n >= 7 ? 'medium' : 'low';
@@ -69,11 +100,12 @@ export function forecastByCategory(
   currentDayOfMonth: number,
   daysInMonth: number,
   budgets: Partial<Record<ExpenseCategory, number>>,
+  todayISO?: string,
 ): CategoryForecast[] {
   const grouped = groupByCategory(categoryDailyTotals);
 
   return Object.entries(grouped).map(([category, dailyTotals]) => {
-    const result = forecastMonthEnd(dailyTotals, currentDayOfMonth, daysInMonth);
+    const result = forecastMonthEnd(dailyTotals, currentDayOfMonth, daysInMonth, FORECAST_ALPHA, todayISO);
     const budget = budgets[category as ExpenseCategory];
 
     let status: CategoryForecast['status'] = 'on_track';
