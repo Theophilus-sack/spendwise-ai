@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, useWindowDimensions } from 'react-native';
-import { Colors, Typography, Spacing } from '@/theme';
+import React, { useEffect, useMemo, useState } from 'react';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator, TouchableOpacity, useWindowDimensions } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { Colors, Typography, Spacing, Radius } from '@/theme';
 import { Card, BudgetBar } from '@/components/ui';
 import { DonutChart, DonutLegend } from '@/components/charts/DonutChart';
 import { TrendChart } from '@/components/charts/TrendChart';
@@ -8,10 +9,13 @@ import { Heatmap } from '@/components/charts/Heatmap';
 import { useAuthStore } from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore } from '@/store/budgetStore';
+import { useIncomeStore } from '@/store/incomeStore';
 import {
-  getCategoryLabel, formatCurrency, formatCompact,
-  buildSpendingHeatmap, findPeakRiskWindows, DAY_NAMES,
+  getCategoryLabel, getCategoryEmoji, formatCurrency, formatCompact, formatDateShort,
+  buildSpendingHeatmap, findPeakRiskWindows, DAY_NAMES, groupBy, sumBy,
+  toISODate, startOfWeekISO, startOfMonthISO, PAYMENT_METHODS,
 } from '@spendwise/shared';
+import type { Expense, PaymentMethod } from '@spendwise/shared';
 
 const MIN_TIMED_EXPENSES_FOR_HEATMAP = 8;
 const HOUR_BUCKETS = [
@@ -24,6 +28,53 @@ const HOUR_BUCKETS = [
 ];
 const DAY_ABBR = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
+// Distinct from the category palette so a payment-method chart never looks
+// like it's reusing a category's color by coincidence.
+const PAYMENT_METHOD_COLORS: Record<PaymentMethod, string> = {
+  mobile_money: '#F5A623',
+  card:         '#45B7D1',
+  cash:         '#2ECC71',
+};
+
+type PeriodType = 'day' | 'week' | 'month';
+const PERIOD_OPTIONS: Array<{ id: PeriodType; label: string }> = [
+  { id: 'day',   label: 'Day' },
+  { id: 'week',  label: 'Week' },
+  { id: 'month', label: 'Month' },
+];
+
+// Statement-style period navigation (day/week/month tabs + prev/next paging),
+// the same pattern MTN MoMo's transaction history uses.
+function getPeriodBounds(type: PeriodType, anchor: Date): { start: string; end: string; label: string } {
+  if (type === 'day') {
+    const iso = toISODate(anchor);
+    const isToday = iso === toISODate(new Date());
+    return {
+      start: iso, end: iso,
+      label: isToday ? 'Today' : anchor.toLocaleDateString('en-GH', { weekday: 'long', day: 'numeric', month: 'short' }),
+    };
+  }
+  if (type === 'week') {
+    const start = startOfWeekISO(anchor);
+    const endDate = new Date(`${start}T00:00:00`);
+    endDate.setDate(endDate.getDate() + 6);
+    const end = toISODate(endDate);
+    return { start, end, label: `${formatDateShort(start)} – ${formatDateShort(end)}` };
+  }
+  const start = startOfMonthISO(anchor);
+  const endDate = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+  const end = toISODate(endDate);
+  return { start, end, label: anchor.toLocaleDateString('en-GH', { month: 'long', year: 'numeric' }) };
+}
+
+function shiftAnchor(anchor: Date, type: PeriodType, dir: 1 | -1): Date {
+  const d = new Date(anchor);
+  if (type === 'day') d.setDate(d.getDate() + dir);
+  else if (type === 'week') d.setDate(d.getDate() + dir * 7);
+  else d.setMonth(d.getMonth() + dir);
+  return d;
+}
+
 export function AnalyticsScreen() {
   const user    = useAuthStore(s => s.user);
   const profile = useAuthStore(s => s.profile);
@@ -32,29 +83,68 @@ export function AnalyticsScreen() {
   const expenses          = useExpenseStore(s => s.expenses);
   const expensesLoading   = useExpenseStore(s => s.loading);
   const loadExpenses      = useExpenseStore(s => s.load);
-  const getSpendingByCategory = useExpenseStore(s => s.getSpendingByCategory);
-  const getBudgetStatuses     = useExpenseStore(s => s.getBudgetStatuses);
+  const getBudgetStatuses = useExpenseStore(s => s.getBudgetStatuses);
 
-  const budgets       = useBudgetStore(s => s.budgets);
-  const budgetsLoading = useBudgetStore(s => s.loading);
-  const loadBudgets   = useBudgetStore(s => s.load);
+  const budgets        = useBudgetStore(s => s.budgets);
+  const budgetsLoading  = useBudgetStore(s => s.loading);
+  const loadBudgets     = useBudgetStore(s => s.load);
+
+  const incomeEntries = useIncomeStore(s => s.entries);
+  const loadIncome    = useIncomeStore(s => s.load);
 
   const { width: screenWidth } = useWindowDimensions();
+
+  const [periodType, setPeriodType] = useState<PeriodType>('month');
+  const [anchor, setAnchor] = useState(() => new Date());
 
   useEffect(() => {
     if (!user) return;
     loadExpenses(user.id);
     loadBudgets(user.id);
+    loadIncome(user.id);
   }, [user?.id]);
 
+  const { start, end, label } = useMemo(() => getPeriodBounds(periodType, anchor), [periodType, anchor]);
+  const isCurrentPeriod = useMemo(() => end >= toISODate(new Date()), [end]);
+
+  const periodExpenses = useMemo(
+    () => expenses.filter(e => e.date >= start && e.date <= end).sort((a, b) => b.date.localeCompare(a.date) || (b.timeOfDay ?? '').localeCompare(a.timeOfDay ?? '')),
+    [expenses, start, end],
+  );
+
   const categoryData = useMemo(() => {
-    const byCategory = getSpendingByCategory();
-    return Object.entries(byCategory).map(([category, value]) => ({
+    const byCategory = groupBy(periodExpenses, 'category');
+    return Object.entries(byCategory).map(([category, list]) => ({
       label: getCategoryLabel(category as any),
-      value: value as number,
+      value: sumBy(list as Expense[], 'amount'),
       color: Colors.categories[category as keyof typeof Colors.categories] ?? Colors.textTertiary,
     }));
-  }, [expenses]);
+  }, [periodExpenses]);
+
+  const paymentMethodData = useMemo(() => {
+    const byMethod = groupBy(periodExpenses, 'paymentMethod');
+    return Object.entries(byMethod).map(([method, list]) => ({
+      label: PAYMENT_METHODS[method as PaymentMethod]?.label ?? method,
+      value: sumBy(list as Expense[], 'amount'),
+      color: PAYMENT_METHOD_COLORS[method as PaymentMethod] ?? Colors.textTertiary,
+    }));
+  }, [periodExpenses]);
+
+  // Base salary is a monthly figure — prorated to the selected period so a
+  // single day or week doesn't misleadingly show the whole month's income.
+  const periodIncome = useMemo(() => {
+    const monthlyBase = profile?.monthlyIncome ?? 0;
+    const proratedBase =
+      periodType === 'month' ? monthlyBase :
+      periodType === 'week'  ? monthlyBase / 4.33 :
+      monthlyBase / 30.44;
+    const extraIncome = incomeEntries
+      .filter(e => e.date >= start && e.date <= end)
+      .reduce((s, e) => s + e.amount, 0);
+    return proratedBase + extraIncome;
+  }, [profile?.monthlyIncome, incomeEntries, start, end, periodType]);
+
+  const periodSpent = useMemo(() => sumBy(periodExpenses, 'amount'), [periodExpenses]);
 
   const budgetStatuses = useMemo(
     () => [...getBudgetStatuses(budgets)].sort((a, b) => b.percentage - a.percentage),
@@ -98,7 +188,6 @@ export function AnalyticsScreen() {
     return { bucketedHeatmap: bucketed, peakWindowText: text };
   }, [expenses, timedExpenseCount, currency]);
 
-  const totalSpent = categoryData.reduce((s, d) => s + d.value, 0);
   const chartWidth = screenWidth - Spacing.base * 2 - Spacing.base * 2;
   const loading = (expensesLoading || budgetsLoading) && expenses.length === 0;
 
@@ -115,18 +204,111 @@ export function AnalyticsScreen() {
   return (
     <SafeAreaView style={styles.safe}>
       <ScrollView contentContainerStyle={styles.content}>
+        {/* ── Period Selector (statement-style, like MTN MoMo) ── */}
+        <Card style={styles.periodCard}>
+          <View style={styles.periodTabs}>
+            {PERIOD_OPTIONS.map(p => (
+              <TouchableOpacity
+                key={p.id}
+                style={[styles.periodTab, periodType === p.id && styles.periodTabActive]}
+                onPress={() => { setPeriodType(p.id); setAnchor(new Date()); }}
+              >
+                <Text style={[styles.periodTabText, periodType === p.id && styles.periodTabTextActive]}>{p.label}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          <View style={styles.periodNav}>
+            <TouchableOpacity onPress={() => setAnchor(a => shiftAnchor(a, periodType, -1))} hitSlop={8}>
+              <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
+            </TouchableOpacity>
+            <Text style={styles.periodLabel}>{label}</Text>
+            <TouchableOpacity
+              onPress={() => setAnchor(a => shiftAnchor(a, periodType, 1))}
+              disabled={isCurrentPeriod}
+              hitSlop={8}
+            >
+              <Ionicons name="chevron-forward" size={20} color={isCurrentPeriod ? Colors.border : Colors.textSecondary} />
+            </TouchableOpacity>
+          </View>
+        </Card>
+
+        {/* ── Income vs Spending ── */}
+        <Card>
+          <Text style={styles.cardTitle}>Income vs Spending</Text>
+          <Text style={styles.cardSub}>{label}{periodType !== 'month' && ' · income prorated from your monthly income'}</Text>
+          <View style={styles.incomeRow}>
+            <View style={styles.incomeCol}>
+              <Text style={styles.incomeLabel}>Income</Text>
+              <Text style={[styles.incomeValue, { color: Colors.success }]}>{formatCurrency(periodIncome, currency as any)}</Text>
+            </View>
+            <View style={styles.incomeCol}>
+              <Text style={styles.incomeLabel}>Spent</Text>
+              <Text style={[styles.incomeValue, { color: Colors.danger }]}>{formatCurrency(periodSpent, currency as any)}</Text>
+            </View>
+            <View style={styles.incomeCol}>
+              <Text style={styles.incomeLabel}>Net</Text>
+              <Text style={[styles.incomeValue, { color: periodIncome - periodSpent >= 0 ? Colors.text : Colors.danger }]}>
+                {formatCurrency(periodIncome - periodSpent, currency as any)}
+              </Text>
+            </View>
+          </View>
+        </Card>
+
         <Card>
           <Text style={styles.cardTitle}>Spending by Category</Text>
-          <Text style={styles.cardSub}>This month</Text>
-          {totalSpent === 0 ? (
-            <EmptyNote text="Log a few expenses this month to see your category breakdown." />
+          <Text style={styles.cardSub}>{label}</Text>
+          {periodSpent === 0 ? (
+            <EmptyNote text="No expenses logged in this period yet." />
           ) : (
             <>
               <View style={styles.donutRow}>
-                <DonutChart data={categoryData} centerValue={formatCompact(totalSpent, currency as any)} centerLabel="total" />
+                <DonutChart data={categoryData} centerValue={formatCompact(periodSpent, currency as any)} centerLabel="total" />
               </View>
               <DonutLegend data={categoryData} formatValue={v => formatCurrency(v, currency as any)} />
             </>
+          )}
+        </Card>
+
+        <Card>
+          <Text style={styles.cardTitle}>Spending by Payment Method</Text>
+          <Text style={styles.cardSub}>{label}</Text>
+          {periodSpent === 0 ? (
+            <EmptyNote text="No expenses logged in this period yet." />
+          ) : (
+            <>
+              <View style={styles.donutRow}>
+                <DonutChart data={paymentMethodData} centerValue={formatCompact(periodSpent, currency as any)} centerLabel="total" />
+              </View>
+              <DonutLegend data={paymentMethodData} formatValue={v => formatCurrency(v, currency as any)} />
+            </>
+          )}
+        </Card>
+
+        {/* ── Statement: itemized transactions for the selected period ── */}
+        <Card>
+          <Text style={styles.cardTitle}>Statement</Text>
+          <Text style={styles.cardSub}>{periodExpenses.length} transaction{periodExpenses.length === 1 ? '' : 's'} · {label}</Text>
+          {periodExpenses.length === 0 ? (
+            <EmptyNote text="Nothing logged in this period yet." />
+          ) : (
+            <View style={styles.statementList}>
+              {periodExpenses.map(e => (
+                <View key={e.id} style={styles.statementRow}>
+                  <View style={[styles.statementIcon, { backgroundColor: (Colors.categories[e.category as keyof typeof Colors.categories] ?? Colors.textTertiary) + '22' }]}>
+                    <Text style={styles.statementEmoji}>{getCategoryEmoji(e.category)}</Text>
+                  </View>
+                  <View style={styles.statementInfo}>
+                    <Text style={styles.statementName} numberOfLines={1}>
+                      {e.merchantName ?? e.description ?? getCategoryLabel(e.category)}
+                    </Text>
+                    <Text style={styles.statementMeta}>
+                      {formatDateShort(e.date)}{e.timeOfDay ? ` · ${e.timeOfDay}` : ''} · {PAYMENT_METHODS[e.paymentMethod]?.label ?? e.paymentMethod}
+                    </Text>
+                  </View>
+                  <Text style={styles.statementAmount}>-{formatCurrency(e.amount, e.currency as any)}</Text>
+                </View>
+              ))}
+            </View>
           )}
         </Card>
 
@@ -216,4 +398,27 @@ const styles = StyleSheet.create({
   peakText:    { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: Spacing.sm, lineHeight: Typography.xs * Typography.normal },
   emptyNote:      { paddingVertical: Spacing.lg, alignItems: 'center' },
   emptyNoteText:  { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center' },
+
+  periodCard: { gap: Spacing.sm },
+  periodTabs: { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md, padding: 3 },
+  periodTab:  { flex: 1, paddingVertical: Spacing.sm, alignItems: 'center', borderRadius: Radius.sm },
+  periodTabActive: { backgroundColor: Colors.primary },
+  periodTabText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
+  periodTabTextActive: { color: '#fff', fontWeight: Typography.semibold },
+  periodNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  periodLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.text },
+
+  incomeRow: { flexDirection: 'row', justifyContent: 'space-between' },
+  incomeCol: { alignItems: 'center', gap: 2, flex: 1 },
+  incomeLabel: { fontSize: Typography.xs, color: Colors.textSecondary },
+  incomeValue: { fontSize: Typography.base, fontWeight: Typography.bold },
+
+  statementList: { gap: Spacing.sm },
+  statementRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  statementIcon: { width: 36, height: 36, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
+  statementEmoji: { fontSize: 16 },
+  statementInfo: { flex: 1, gap: 1 },
+  statementName: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.text },
+  statementMeta: { fontSize: Typography.xs, color: Colors.textTertiary },
+  statementAmount: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.text, fontVariant: ['tabular-nums'] },
 });

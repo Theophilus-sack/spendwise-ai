@@ -19,6 +19,22 @@ export function formatCompact(amount: number, currency: Currency = 'GHS'): strin
   return `${symbol}${amount.toFixed(0)}`;
 }
 
+// ─── IDs ──────────────────────────────────────────────────────────────────────
+
+/**
+ * Generates a client-side v4 UUID. Every user-content table's `id` column is
+ * `UUID PRIMARY KEY` — anything else (e.g. a `exp_${Date.now()}_...` string)
+ * fails the Postgres insert with "invalid input syntax for type uuid",
+ * silently if the caller doesn't check the upsert's `error` field.
+ */
+export function generateUUID(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = (Math.random() * 16) | 0;
+    const v = c === 'x' ? r : (r & 0x3) | 0x8;
+    return v.toString(16);
+  });
+}
+
 // ─── Dates ────────────────────────────────────────────────────────────────────
 
 export function toISODate(date: Date = new Date()): string {

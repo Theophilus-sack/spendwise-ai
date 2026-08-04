@@ -1,9 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TouchableOpacity,
-  Modal, TextInput, SafeAreaView, Alert, KeyboardAvoidingView, Platform,
+  Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNavigation } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
@@ -11,11 +14,14 @@ import { useIncomeStore }  from '@/store/incomeStore';
 import { Card, BudgetBar, Button } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
-  CATEGORY_LIST, getCategoryEmoji, getCategoryLabel, formatCurrency,
+  CATEGORY_LIST, getCategoryEmoji, getCategoryLabel, formatCurrency, generateUUID,
 } from '@spendwise/shared';
 import type { Budget, BudgetStatus, ExpenseCategory } from '@spendwise/shared';
+import type { AppStackNavProp } from '@/navigation/types';
 
 export function BudgetScreen() {
+  const nav = useNavigation<AppStackNavProp>();
+  const insets = useSafeAreaInsets();
   const { user, profile } = useAuthStore();
   const { getBudgetStatuses } = useExpenseStore();
   const { budgets, load, upsertBudget, deleteBudget } = useBudgetStore();
@@ -24,10 +30,14 @@ export function BudgetScreen() {
   const [showModal,  setShowModal]  = useState(false);
   const [editBudget, setEditBudget] = useState<BudgetStatus | null>(null);
   const [limitInput, setLimitInput] = useState('');
+  const [editDescription, setEditDescription] = useState('');
 
   const [showAddModal,   setShowAddModal]   = useState(false);
   const [newCategory,    setNewCategory]    = useState<ExpenseCategory | null>(null);
   const [newLimitInput,  setNewLimitInput]  = useState('');
+  const [newDescription, setNewDescription] = useState('');
+  const [useCustomCategory, setUseCustomCategory] = useState(false);
+  const [customCategoryName, setCustomCategoryName] = useState('');
   const [saving,         setSaving]         = useState(false);
 
   const currency = (profile?.currency ?? 'GHS') as any;
@@ -53,6 +63,7 @@ export function BudgetScreen() {
   const openEdit = (b: BudgetStatus) => {
     setEditBudget(b);
     setLimitInput(b.limitAmount.toString());
+    setEditDescription(b.description ?? '');
     setShowModal(true);
   };
 
@@ -64,6 +75,7 @@ export function BudgetScreen() {
     await upsertBudget({
       ...editBudget,
       limitAmount: val,
+      description: editDescription.trim() || undefined,
       updatedAt: now,
     });
     setShowModal(false);
@@ -72,11 +84,16 @@ export function BudgetScreen() {
   const openAdd = () => {
     setNewCategory(availableCategories[0] ?? null);
     setNewLimitInput('');
+    setNewDescription('');
+    setUseCustomCategory(false);
+    setCustomCategoryName('');
     setShowAddModal(true);
   };
 
   const handleAddSave = async () => {
-    if (!user || !newCategory) return;
+    if (!user) return;
+    const effectiveCategory = useCustomCategory ? customCategoryName.trim() : newCategory;
+    if (!effectiveCategory) { Alert.alert('Missing category', useCustomCategory ? 'Type a name for this category.' : 'Pick a category.'); return; }
     const val = parseFloat(newLimitInput);
     if (isNaN(val) || val <= 0) { Alert.alert('Invalid', 'Enter a valid amount'); return; }
 
@@ -84,9 +101,10 @@ export function BudgetScreen() {
     try {
       const now = new Date().toISOString();
       const budget: Budget = {
-        id:          `bud_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id:          generateUUID(),
         userId:      user.id,
-        category:    newCategory,
+        category:    effectiveCategory as ExpenseCategory,
+        description: newDescription.trim() || undefined,
         limitAmount: val,
         period:      'monthly',
         rollover:    false,
@@ -96,6 +114,8 @@ export function BudgetScreen() {
       };
       await upsertBudget(budget);
       setShowAddModal(false);
+    } catch (err) {
+      Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -113,7 +133,31 @@ export function BudgetScreen() {
   };
 
   return (
-    <SafeAreaView style={styles.safe}>
+    <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
+      {/* ── Header — bleeds behind the status bar so it blends with it ── */}
+      <LinearGradient
+        colors={[Colors.primaryDark, Colors.primary]}
+        style={[styles.header, { paddingTop: insets.top + Spacing.md }]}
+        start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerTop}>
+          <View style={styles.headerBrand}>
+            <View style={styles.headerIconBg}>
+              <Ionicons name="pie-chart" size={20} color={Colors.primary} />
+            </View>
+            <Text style={styles.headerTitle}>SpendWise AI</Text>
+          </View>
+          <TouchableOpacity style={styles.headerActionBtn} onPress={() => nav.navigate('Analytics')} hitSlop={8}>
+            <Ionicons name="bar-chart-outline" size={19} color="#fff" />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      <View style={styles.body}>
+        <Text style={styles.pageTitle}>My Budget</Text>
+        <Text style={styles.pageSubtitle}>Set limits and stay on track.</Text>
+      </View>
+
       {/* Summary card */}
       <View style={styles.summaryCard}>
         <View style={styles.summaryRow}>
@@ -158,7 +202,7 @@ export function BudgetScreen() {
               </View>
               <View style={styles.catInfo}>
                 <Text style={styles.catName}>{getCategoryLabel(b.category as any)}</Text>
-                <Text style={styles.catPeriod}>{b.period} budget</Text>
+                <Text style={styles.catPeriod}>{b.description ? b.description : `${b.period} budget`}</Text>
               </View>
               <TouchableOpacity onPress={() => openEdit(b)} style={styles.editBtn}>
                 <Ionicons name="pencil-outline" size={16} color={Colors.textSecondary} />
@@ -209,6 +253,14 @@ export function BudgetScreen() {
                 placeholder="e.g. 500"
                 placeholderTextColor={Colors.textTertiary}
               />
+              <Text style={styles.modalLabel}>Description (optional)</Text>
+              <TextInput
+                style={styles.modalInputText}
+                value={editDescription}
+                onChangeText={setEditDescription}
+                placeholder="e.g. Weekend outings only"
+                placeholderTextColor={Colors.textTertiary}
+              />
               <View style={styles.modalActions}>
                 <Button label="Cancel" onPress={() => setShowModal(false)} variant="outline" style={{ flex: 1 }} />
                 <Button label="Save" onPress={handleSave} style={{ flex: 1 }} />
@@ -223,23 +275,44 @@ export function BudgetScreen() {
         <KeyboardAvoidingView style={styles.modalOverlay} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <TouchableOpacity style={styles.modalOverlayTouch} activeOpacity={1} onPress={() => setShowAddModal(false)}>
             <TouchableOpacity activeOpacity={1} onPress={() => {}} style={styles.modalCard}>
-              <Text style={styles.modalTitle}>Add Budget Category</Text>
+              <Text style={styles.modalTitle}>Create Budget</Text>
 
               <Text style={styles.modalLabel}>Category</Text>
               <View style={styles.categoryGrid}>
                 {availableCategories.map(c => (
                   <TouchableOpacity
                     key={c}
-                    style={[styles.categoryChip, newCategory === c && styles.categoryChipActive]}
-                    onPress={() => setNewCategory(c)}
+                    style={[styles.categoryChip, !useCustomCategory && newCategory === c && styles.categoryChipActive]}
+                    onPress={() => { setNewCategory(c); setUseCustomCategory(false); }}
                   >
                     <Text style={styles.categoryChipEmoji}>{getCategoryEmoji(c)}</Text>
-                    <Text style={[styles.categoryChipLabel, newCategory === c && styles.categoryChipLabelActive]}>
+                    <Text style={[styles.categoryChipLabel, !useCustomCategory && newCategory === c && styles.categoryChipLabelActive]}>
                       {getCategoryLabel(c)}
                     </Text>
                   </TouchableOpacity>
                 ))}
+                <TouchableOpacity
+                  style={[styles.categoryChip, useCustomCategory && styles.categoryChipActive]}
+                  onPress={() => setUseCustomCategory(true)}
+                >
+                  <Text style={styles.categoryChipEmoji}>✏️</Text>
+                  <Text style={[styles.categoryChipLabel, useCustomCategory && styles.categoryChipLabelActive]}>Custom</Text>
+                </TouchableOpacity>
               </View>
+
+              {useCustomCategory && (
+                <>
+                  <Text style={styles.modalLabel}>Name</Text>
+                  <TextInput
+                    style={styles.modalInputText}
+                    value={customCategoryName}
+                    onChangeText={setCustomCategoryName}
+                    placeholder="e.g. Weekend Faaji"
+                    placeholderTextColor={Colors.textTertiary}
+                    autoFocus
+                  />
+                </>
+              )}
 
               <Text style={styles.modalLabel}>Monthly limit ({currency === 'GHS' ? '₵' : currency})</Text>
               <TextInput
@@ -250,11 +323,21 @@ export function BudgetScreen() {
                 placeholder="e.g. 500"
                 placeholderTextColor={Colors.textTertiary}
               />
+
+              <Text style={styles.modalLabel}>Description (optional)</Text>
+              <TextInput
+                style={styles.modalInputText}
+                value={newDescription}
+                onChangeText={setNewDescription}
+                placeholder="Add optional description"
+                placeholderTextColor={Colors.textTertiary}
+              />
+
               <View style={styles.modalActions}>
                 <Button label="Cancel" onPress={() => setShowAddModal(false)} variant="outline" style={{ flex: 1 }} />
                 <Button
-                  label="Save" onPress={handleAddSave} style={{ flex: 1 }}
-                  loading={saving} disabled={!newCategory}
+                  label="Create" onPress={handleAddSave} style={{ flex: 1 }}
+                  loading={saving} disabled={useCustomCategory ? !customCategoryName.trim() : !newCategory}
                 />
               </View>
             </TouchableOpacity>
@@ -268,7 +351,22 @@ export function BudgetScreen() {
 const styles = StyleSheet.create({
   safe: { flex: 1, backgroundColor: Colors.background },
 
-  summaryCard: { margin: Spacing.base, backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.base, ...Shadows.sm },
+  header: {
+    paddingHorizontal: Spacing.lg, paddingBottom: Spacing.xl,
+    borderBottomLeftRadius: Radius.xl, borderBottomRightRadius: Radius.xl,
+    ...Shadows.primary,
+  },
+  headerTop:   { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  headerBrand: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  headerIconBg:{ width: 40, height: 40, borderRadius: Radius.md, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
+  headerTitle: { fontSize: Typography.base, fontWeight: Typography.bold, color: '#fff' },
+  headerActionBtn: { width: 38, height: 38, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.18)', alignItems: 'center', justifyContent: 'center' },
+
+  body: { paddingHorizontal: Spacing.base, paddingTop: Spacing.lg, gap: Spacing.xs },
+  pageTitle:    { fontSize: Typography.xxl, fontWeight: Typography.bold, color: Colors.text },
+  pageSubtitle: { fontSize: Typography.sm, color: Colors.textSecondary },
+
+  summaryCard: { marginHorizontal: Spacing.base, marginTop: Spacing.base, backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.base, ...Shadows.sm },
   summaryRow:  { flexDirection: 'row', alignItems: 'center' },
   summaryLabel:{ fontSize: Typography.xs, color: Colors.textSecondary, marginBottom: 4 },
   summaryValue:{ fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
@@ -310,5 +408,6 @@ const styles = StyleSheet.create({
   modalCategory:{ fontSize: Typography.lg, color: Colors.textSecondary },
   modalLabel:   { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
   modalInput:   { backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.border, padding: Spacing.base, fontSize: Typography.xl, color: Colors.text, fontWeight: Typography.semibold },
+  modalInputText: { backgroundColor: Colors.surfaceAlt, borderRadius: Radius.md, borderWidth: 1.5, borderColor: Colors.border, padding: Spacing.base, fontSize: Typography.base, color: Colors.text },
   modalActions: { flexDirection: 'row', gap: Spacing.md },
 });

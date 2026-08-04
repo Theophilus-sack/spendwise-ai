@@ -10,12 +10,13 @@ import { Button } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
   CURRENCIES, INCOME_RANGES, INCOME_SOURCES, ONBOARDING_GOALS,
-  CATEGORIES, PAYMENT_METHODS, DEFAULT_BUDGET_PCT,
-  SPENDING_PERSONALITIES, DISCIPLINE_STYLES,
+  CATEGORIES, PAYMENT_METHODS, SAVINGS_PCT_OPTIONS,
+  SPENDING_PERSONALITIES, DISCIPLINE_STYLES, formatCurrency,
+  generateIncomeBasedBudgets,
 } from '@spendwise/shared';
 import type { OnboardingData, Currency, ExpenseCategory, PaymentMethod, IncomeSource } from '@spendwise/shared';
 
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 8;
 
 export function OnboardingWizard() {
   const { user, fetchProfile } = useAuthStore();
@@ -24,6 +25,7 @@ export function OnboardingWizard() {
 
   const [data, setData] = useState<Partial<OnboardingData>>({
     currency: 'GHS',
+    savingsTargetPct: 0.20,
     financialGoals: [],
     preferredCategories: [],
     preferredPaymentMethods: ['mobile_money'],
@@ -37,12 +39,13 @@ export function OnboardingWizard() {
   const canProceed = (): boolean => {
     switch (step) {
       case 0: return !!data.currency && !!data.incomeRange;
-      case 1: return (data.incomeSources?.length ?? 0) > 0;
-      case 2: return !!data.spendingPersonality && !!data.disciplineStyle;
-      case 3: return (data.financialGoals?.length ?? 0) > 0;
-      case 4: return (data.preferredCategories?.length ?? 0) > 0;
-      case 5: return (data.preferredPaymentMethods?.length ?? 0) > 0;
-      case 6: return true;
+      case 1: return data.savingsTargetPct != null;
+      case 2: return (data.incomeSources?.length ?? 0) > 0;
+      case 3: return !!data.spendingPersonality && !!data.disciplineStyle;
+      case 4: return (data.financialGoals?.length ?? 0) > 0;
+      case 5: return (data.preferredCategories?.length ?? 0) > 0;
+      case 6: return (data.preferredPaymentMethods?.length ?? 0) > 0;
+      case 7: return true;
       default: return false;
     }
   };
@@ -53,12 +56,16 @@ export function OnboardingWizard() {
     try {
       const incomeRange = INCOME_RANGES.find(r => r.value === data.incomeRange);
       const monthlyIncome = incomeRange?.midpoint ?? 0;
+      const savingsTargetPct = data.savingsTargetPct ?? 0.20;
 
-      // Starter budget from income and spending personality — a fixed formula,
-      // not an AI call. Kept deterministic on purpose: budget math should be
-      // auditable and instant, not dependent on a network round-trip during
-      // account setup.
-      const budgets = generateInitialBudgets(monthlyIncome, data.spendingPersonality ?? 'balanced');
+      // Starter budget from income, the user's own chosen savings rate, and
+      // spending personality — a fixed formula, not an AI call. Kept
+      // deterministic on purpose: budget math should be auditable and
+      // instant, not dependent on a network round-trip during account setup.
+      // Every category's limit (including savings) always sums back to
+      // exactly `monthlyIncome` — the budget tallies with income by
+      // construction, not by coincidence.
+      const budgets = generateIncomeBasedBudgets(monthlyIncome, savingsTargetPct, data.spendingPersonality ?? 'balanced');
 
       // Save profile
       const { error } = await supabase.from('profiles').upsert({
@@ -72,7 +79,7 @@ export function OnboardingWizard() {
         preferred_categories:     data.preferredCategories,
         preferred_payment_methods: data.preferredPaymentMethods,
         discipline_style:         data.disciplineStyle,
-        savings_target_pct:       data.spendingPersonality === 'saver' ? 30 : 20,
+        savings_target_pct:       Math.round(savingsTargetPct * 100),
         onboarding_completed:     true,
       }, { onConflict: 'user_id' });
 
@@ -146,8 +153,32 @@ export function OnboardingWizard() {
           </StepWrapper>
         )}
 
-        {/* ── Step 1: Income Sources ── */}
+        {/* ── Step 1: Savings Goal ── */}
         {step === 1 && (
+          <StepWrapper
+            emoji="🏦" title="How much do you want to save?"
+            subtitle="We'll build your starter budget around this — the rest of your income gets split across your everyday categories."
+          >
+            <ChipGrid>
+              {SAVINGS_PCT_OPTIONS.map(pct => {
+                const incomeRange = INCOME_RANGES.find(r => r.value === data.incomeRange);
+                const estIncome = incomeRange?.midpoint ?? 0;
+                return (
+                  <Chip
+                    key={pct}
+                    label={`${Math.round(pct * 100)}%${estIncome > 0 ? ` · ${formatCurrency(estIncome * pct, data.currency ?? 'GHS')}/mo` : ''}`}
+                    selected={data.savingsTargetPct === pct}
+                    onPress={() => update({ savingsTargetPct: pct })}
+                    fullWidth
+                  />
+                );
+              })}
+            </ChipGrid>
+          </StepWrapper>
+        )}
+
+        {/* ── Step 2: Income Sources ── */}
+        {step === 2 && (
           <StepWrapper
             emoji="💼" title="Where does your money come from?"
             subtitle="Select all that apply."
@@ -165,8 +196,8 @@ export function OnboardingWizard() {
           </StepWrapper>
         )}
 
-        {/* ── Step 2: Personality & Discipline ── */}
-        {step === 2 && (
+        {/* ── Step 3: Personality & Discipline ── */}
+        {step === 3 && (
           <StepWrapper
             emoji="🧠" title="How do you handle money?"
             subtitle="Be honest — this shapes your AI recommendations."
@@ -190,8 +221,8 @@ export function OnboardingWizard() {
           </StepWrapper>
         )}
 
-        {/* ── Step 3: Financial Goals ── */}
-        {step === 3 && (
+        {/* ── Step 4: Financial Goals ── */}
+        {step === 4 && (
           <StepWrapper
             emoji="🎯" title="What are your financial goals?"
             subtitle="Pick all that apply — we'll tailor your AI advisor to these."
@@ -210,8 +241,8 @@ export function OnboardingWizard() {
           </StepWrapper>
         )}
 
-        {/* ── Step 4: Spending Categories ── */}
-        {step === 4 && (
+        {/* ── Step 5: Spending Categories ── */}
+        {step === 5 && (
           <StepWrapper
             emoji="🛒" title="Your top spending areas?"
             subtitle="These become your budget categories."
@@ -229,8 +260,8 @@ export function OnboardingWizard() {
           </StepWrapper>
         )}
 
-        {/* ── Step 5: Payment Methods ── */}
-        {step === 5 && (
+        {/* ── Step 6: Payment Methods ── */}
+        {step === 6 && (
           <StepWrapper
             emoji="💳" title="How do you usually pay?"
             subtitle="We'll use this to make logging faster."
@@ -248,8 +279,8 @@ export function OnboardingWizard() {
           </StepWrapper>
         )}
 
-        {/* ── Step 6: All done ── */}
-        {step === 6 && (
+        {/* ── Step 7: All done ── */}
+        {step === 7 && (
           <StepWrapper
             emoji="🎉" title="You're all set!"
             subtitle="We've built your starter budget from your income and habits. Let's start tracking."
@@ -336,17 +367,6 @@ function PersonalityCard({ emoji, label, desc, selected, onPress }: {
   );
 }
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-function generateInitialBudgets(monthlyIncome: number, personality: string) {
-  const multiplier = personality === 'saver' ? 0.8 : personality === 'spender' ? 1.1 : 1.0;
-  return Object.entries(DEFAULT_BUDGET_PCT)
-    .filter(([, pct]) => pct > 0)
-    .map(([category, pct]) => ({
-      category,
-      limit: Math.round(monthlyIncome * pct * multiplier / 10) * 10, // round to nearest 10
-    }));
-}
 
 // ─── Styles ───────────────────────────────────────────────────────────────────
 

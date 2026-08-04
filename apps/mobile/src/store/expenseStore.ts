@@ -6,7 +6,7 @@ import {
 } from '@/lib/database';
 import {
   todayISO, startOfMonthISO, groupBy, sumBy,
-  categorizeLocally, LOW_CONFIDENCE_THRESHOLD,
+  categorizeLocally, LOW_CONFIDENCE_THRESHOLD, generateUUID,
 } from '@spendwise/shared';
 import type { Expense, CreateExpenseInput, ExpenseCategory, BudgetStatus } from '@spendwise/shared';
 import { callEdgeFunction } from '@/lib/supabase';
@@ -77,7 +77,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
 
   addExpense: async (userId, input) => {
     const now = new Date().toISOString();
-    const id  = `exp_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+    const id  = generateUUID();
 
     // AI categorization (try cloud, fallback to local rule engine)
     let category = input.category;

@@ -8,9 +8,10 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { supabase }       from '@/lib/supabase';
 import { useAuthStore }   from '@/store/authStore';
 import { useIncomeStore } from '@/store/incomeStore';
+import { useBudgetStore } from '@/store/budgetStore';
 import { Card, Button }   from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
-import { formatCurrency } from '@spendwise/shared';
+import { formatCurrency, generateUUID, generateIncomeBasedBudgets } from '@spendwise/shared';
 import type { IncomeEntry, IncomeSource } from '@spendwise/shared';
 
 const SOURCE_LABELS: Record<IncomeSource, string> = {
@@ -36,6 +37,7 @@ const ALL_SOURCES: IncomeSource[] = ['salary', 'freelance', 'business', 'investm
 export function IncomeScreen() {
   const { user, profile, fetchProfile } = useAuthStore();
   const { entries, loading, load, addEntry, deleteEntry, getTotalThisMonth } = useIncomeStore();
+  const { budgets, load: loadBudgets, upsertBudget } = useBudgetStore();
 
   const [showModal, setShowModal] = useState(false);
   const [source,    setSource]    = useState<IncomeSource>('salary');
@@ -51,7 +53,7 @@ export function IncomeScreen() {
   const currency = (profile?.currency ?? 'GHS') as any;
 
   const refresh = useCallback(async () => {
-    if (user) await load(user.id);
+    if (user) await Promise.all([load(user.id), loadBudgets(user.id)]);
   }, [user]);
 
   useEffect(() => { refresh(); }, []);
@@ -67,7 +69,7 @@ export function IncomeScreen() {
     try {
       const now = new Date().toISOString();
       const entry: IncomeEntry = {
-        id:          `inc_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id:          generateUUID(),
         userId:      user!.id,
         source,
         sourceName:  name.trim() || undefined,
@@ -94,10 +96,60 @@ export function IncomeScreen() {
     setShowPrimaryModal(true);
   };
 
+  // A same-order-of-magnitude jump (e.g. typing 2 extra zeros) is the classic
+  // fat-finger mistake on a numeric income field — flag it, don't block it.
+  const isImplausibleJump = (oldVal: number, newVal: number): boolean => {
+    if (oldVal <= 0 || newVal <= 0) return false;
+    const ratio = newVal / oldVal;
+    return ratio >= 8 || ratio <= 1 / 8;
+  };
+
+  const confirmAsync = (title: string, message: string, confirmLabel: string): Promise<boolean> =>
+    new Promise(resolve => {
+      Alert.alert(title, message, [
+        { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+        { text: confirmLabel, onPress: () => resolve(true) },
+      ]);
+    });
+
+  const handleRecalculateBudgets = async (newIncome: number) => {
+    if (!user) return;
+    const lines = generateIncomeBasedBudgets(
+      newIncome,
+      (profile?.savingsTargetPct ?? 20) / 100,
+      profile?.spendingPersonality ?? 'balanced',
+    );
+    const now = new Date().toISOString();
+    for (const line of lines) {
+      const match = budgets.find(b => b.category === line.category);
+      await upsertBudget({
+        id:           match?.id ?? generateUUID(),
+        userId:       user.id,
+        category:     line.category as any,
+        description:  match?.description,
+        limitAmount:  line.limit,
+        period:       'monthly',
+        rollover:     match?.rollover ?? false,
+        aiSuggested:  true,
+        createdAt:    match?.createdAt ?? now,
+        updatedAt:    now,
+      });
+    }
+  };
+
   const handleSavePrimary = async () => {
     if (!user) return;
     const val = parseFloat(primaryInput);
     if (isNaN(val) || val < 0) { Alert.alert('Invalid amount', 'Enter a valid monthly income.'); return; }
+
+    if (isImplausibleJump(primaryIncome, val)) {
+      const proceed = await confirmAsync(
+        'Big change',
+        `That's a jump from ${formatCurrency(primaryIncome, currency)} to ${formatCurrency(val, currency)} — did you mean to enter that?`,
+        "Yes, that's right",
+      );
+      if (!proceed) return;
+    }
 
     setSavingPrimary(true);
     try {
@@ -108,6 +160,19 @@ export function IncomeScreen() {
       if (error) throw error;
       await fetchProfile();
       setShowPrimaryModal(false);
+
+      // Meaningful change + there's an existing budget to reshape — offer to
+      // rebuild it around the new income rather than leaving stale limits
+      // that no longer relate to what the user actually earns.
+      const changedMeaningfully = primaryIncome <= 0 || Math.abs(val - primaryIncome) / primaryIncome > 0.05;
+      if (changedMeaningfully && budgets.length > 0) {
+        const update = await confirmAsync(
+          'Update your budgets?',
+          `Recalculate your category budgets to match your new income${profile?.savingsTargetPct ? ` and ${profile.savingsTargetPct}% savings goal` : ''}?`,
+          'Recalculate',
+        );
+        if (update) await handleRecalculateBudgets(val);
+      }
     } catch (err) {
       Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {

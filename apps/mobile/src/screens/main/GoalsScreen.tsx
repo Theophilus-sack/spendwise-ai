@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, Modal,
-  TextInput, Alert, RefreshControl, Animated,
+  TextInput, Alert, RefreshControl, Animated, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,7 +10,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useGoalStore } from '@/store/goalStore';
 import { Card }         from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
-import { formatCurrency } from '@spendwise/shared';
+import { formatCurrency, generateUUID } from '@spendwise/shared';
 import type { Goal } from '@spendwise/shared';
 
 const EMOJI_OPTIONS = ['🏠', '🚗', '✈️', '📱', '💍', '🎓', '💰', '🏖️', '🎯', '👶', '🏥', '💻'];
@@ -69,7 +69,7 @@ export function GoalsScreen() {
     try {
       const now = new Date().toISOString();
       const goal: Goal = {
-        id:            `goal_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+        id:            generateUUID(),
         userId:        user!.id,
         title:         title.trim(),
         emoji:         selectedEmoji,
@@ -88,6 +88,8 @@ export function GoalsScreen() {
       setTargetAmount('');
       setDeadline('');
       setSelectedEmoji('🎯');
+    } catch (err) {
+      Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -102,6 +104,8 @@ export function GoalsScreen() {
       setShowContribModal(false);
       setContribAmount('');
       setSelectedGoal(null);
+    } catch (err) {
+      Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -268,6 +272,7 @@ export function GoalsScreen() {
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.modalContent}>
             <Text style={styles.fieldLabel}>Choose an emoji</Text>
             <View style={styles.emojiGrid}>
@@ -295,6 +300,7 @@ export function GoalsScreen() {
               <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Create Goal'}</Text>
             </TouchableOpacity>
           </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 
@@ -309,6 +315,7 @@ export function GoalsScreen() {
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.modalContent}>
             {selectedGoal && (
               <Card style={styles.contribProgress}>
@@ -336,6 +343,7 @@ export function GoalsScreen() {
               <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Add to Goal'}</Text>
             </TouchableOpacity>
           </View>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
     </SafeAreaView>

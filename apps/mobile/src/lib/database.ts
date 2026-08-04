@@ -41,6 +41,7 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
       id            TEXT PRIMARY KEY,
       user_id       TEXT NOT NULL,
       category      TEXT NOT NULL,
+      description   TEXT,
       limit_amount  REAL NOT NULL,
       period        TEXT NOT NULL DEFAULT 'monthly',
       rollover      INTEGER NOT NULL DEFAULT 0,
@@ -134,6 +135,14 @@ async function initSchema(db: SQLite.SQLiteDatabase): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_sync_queue_table   ON sync_queue(table_name);
     CREATE INDEX IF NOT EXISTS idx_debt_payments_debt ON debt_payments(debt_id, date DESC);
   `);
+
+  // `CREATE TABLE IF NOT EXISTS` above only shapes brand-new local databases —
+  // devices with an existing spendwise.db from before `description` existed
+  // need it added on top. Errors if the column is already there, which is
+  // the expected/harmless case, so it's swallowed rather than surfaced.
+  try {
+    await db.execAsync(`ALTER TABLE budgets ADD COLUMN description TEXT;`);
+  } catch {}
 }
 
 // ─── Lifecycle ────────────────────────────────────────────────────────────────
@@ -220,9 +229,9 @@ export async function dbUpsertBudget(budget: Budget): Promise<void> {
   const db = await getDB();
   await db.runAsync(
     `INSERT OR REPLACE INTO budgets
-     (id, user_id, category, limit_amount, period, rollover, ai_suggested, synced, created_at, updated_at)
-     VALUES (?,?,?,?,?,?,?,0,?,?)`,
-    [budget.id, budget.userId, budget.category, budget.limitAmount,
+     (id, user_id, category, description, limit_amount, period, rollover, ai_suggested, synced, created_at, updated_at)
+     VALUES (?,?,?,?,?,?,?,?,0,?,?)`,
+    [budget.id, budget.userId, budget.category, budget.description ?? null, budget.limitAmount,
      budget.period, budget.rollover ? 1 : 0, budget.aiSuggested ? 1 : 0,
      budget.createdAt, budget.updatedAt],
   );
@@ -373,7 +382,9 @@ function rowToExpense(row: Record<string, unknown>): Expense {
 function rowToBudget(row: Record<string, unknown>): Budget {
   return {
     id: String(row.id), userId: String(row.user_id),
-    category: String(row.category) as any, limitAmount: Number(row.limit_amount),
+    category: String(row.category) as any,
+    description: row.description ? String(row.description) : undefined,
+    limitAmount: Number(row.limit_amount),
     period: String(row.period) as any, rollover: Number(row.rollover) === 1,
     aiSuggested: Number(row.ai_suggested) === 1,
     createdAt: String(row.created_at), updatedAt: String(row.updated_at),

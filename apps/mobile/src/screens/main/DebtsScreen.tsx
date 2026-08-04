@@ -9,7 +9,7 @@ import { useAuthStore } from '@/store/authStore';
 import { useDebtStore } from '@/store/debtStore';
 import { Card, Button } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
-import { formatCurrency, DEBT_TYPES } from '@spendwise/shared';
+import { formatCurrency, DEBT_TYPES, generateUUID } from '@spendwise/shared';
 import type { Debt, DebtType } from '@spendwise/shared';
 
 const ALL_DEBT_TYPES: DebtType[] = ['loan', 'credit_card', 'i_owe', 'owed_to_me'];
@@ -92,7 +92,7 @@ export function DebtsScreen() {
     try {
       const now = new Date().toISOString();
       const debt: Debt = {
-        id:              editing?.id ?? `debt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        id:              editing?.id ?? generateUUID(),
         userId:          user.id,
         label:           label.trim(),
         debtType,
@@ -109,6 +109,8 @@ export function DebtsScreen() {
       if (editing) await updateDebt(debt); else await addDebt(debt);
       setShowForm(false);
       resetForm();
+    } catch (err) {
+      Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSaving(false);
     }
@@ -133,6 +135,8 @@ export function DebtsScreen() {
       await recordPayment(payingDebt.id, amt, new Date().toISOString().slice(0, 10));
       setPayingDebt(null);
       setPaymentInput('');
+    } catch (err) {
+      Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setPayingSaving(false);
     }
@@ -257,6 +261,7 @@ export function DebtsScreen() {
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
+          <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView contentContainerStyle={styles.formContent} keyboardShouldPersistTaps="handled">
             <Text style={styles.fieldLabel}>Type</Text>
             <View style={styles.typeGrid}>
@@ -297,6 +302,7 @@ export function DebtsScreen() {
 
             <Button label={saving ? 'Saving...' : 'Save'} onPress={handleSaveForm} loading={saving} fullWidth style={{ marginTop: Spacing.md }} />
           </ScrollView>
+          </KeyboardAvoidingView>
         </SafeAreaView>
       </Modal>
 

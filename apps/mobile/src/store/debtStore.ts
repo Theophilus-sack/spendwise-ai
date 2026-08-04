@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { dbGetDebts, dbUpsertDebt, dbDeleteDebt, dbInsertDebtPayment } from '@/lib/database';
+import { generateUUID } from '@spendwise/shared';
 import type { Debt, DebtPayment } from '@spendwise/shared';
 
 interface DebtState {
@@ -38,13 +39,15 @@ export const useDebtStore = create<DebtState>((set, get) => ({
   addDebt: async (debt) => {
     await dbUpsertDebt(debt);
     set(s => ({ debts: [debt, ...s.debts] }));
-    await supabase.from('debts').upsert(debtToRemote(debt));
+    const { error } = await supabase.from('debts').upsert(debtToRemote(debt));
+    if (error) throw error;
   },
 
   updateDebt: async (debt) => {
     await dbUpsertDebt(debt);
     set(s => ({ debts: s.debts.map(d => d.id === debt.id ? debt : d) }));
-    await supabase.from('debts').upsert(debtToRemote(debt));
+    const { error } = await supabase.from('debts').upsert(debtToRemote(debt));
+    if (error) throw error;
   },
 
   deleteDebt: async (id) => {
@@ -59,14 +62,15 @@ export const useDebtStore = create<DebtState>((set, get) => ({
 
     const now = new Date().toISOString();
     const payment: DebtPayment = {
-      id: `pmt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      id: generateUUID(),
       debtId, userId: debt.userId, amount, date, notes, createdAt: now,
     };
     await dbInsertDebtPayment(payment);
-    await supabase.from('debt_payments').upsert({
+    const { error } = await supabase.from('debt_payments').upsert({
       id: payment.id, debt_id: debtId, user_id: debt.userId,
       amount, date, notes: notes ?? null, created_at: now,
     });
+    if (error) throw error;
 
     // A payment can't put the balance below zero, and clearing it to zero
     // is what actually marks the debt paid off.

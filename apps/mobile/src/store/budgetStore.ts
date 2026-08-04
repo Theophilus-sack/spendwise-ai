@@ -43,12 +43,14 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       }
       return { budgets: [...s.budgets, budget] };
     });
-    await supabase.from('budgets').upsert(budgetToRemote(budget));
+    const { error } = await supabase.from('budgets').upsert(budgetToRemote(budget));
+    if (error) throw error;
   },
 
   deleteBudget: async (id) => {
     set(s => ({ budgets: s.budgets.filter(b => b.id !== id) }));
-    await supabase.from('budgets').delete().eq('id', id);
+    const { error } = await supabase.from('budgets').delete().eq('id', id);
+    if (error) throw error;
   },
 
   reset: () => set({ budgets: [], loading: false }),
@@ -57,7 +59,8 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
 function remoteToBudget(r: Record<string, unknown>): Budget {
   return {
     id: String(r.id), userId: String(r.user_id),
-    category: r.category as any, limitAmount: Number(r.limit_amount),
+    category: r.category as any, description: r.description ? String(r.description) : undefined,
+    limitAmount: Number(r.limit_amount),
     period: (r.period as any) ?? 'monthly', rollover: Boolean(r.rollover),
     aiSuggested: Boolean(r.ai_suggested),
     createdAt: String(r.created_at), updatedAt: String(r.updated_at),
@@ -66,7 +69,7 @@ function remoteToBudget(r: Record<string, unknown>): Budget {
 
 function budgetToRemote(b: Budget): Record<string, unknown> {
   return {
-    id: b.id, user_id: b.userId, category: b.category,
+    id: b.id, user_id: b.userId, category: b.category, description: b.description ?? null,
     limit_amount: b.limitAmount, period: b.period,
     rollover: b.rollover, ai_suggested: b.aiSuggested,
     created_at: b.createdAt, updated_at: b.updatedAt,

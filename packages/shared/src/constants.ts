@@ -153,6 +153,10 @@ export const FDS_WEIGHTS = {
 
 // ─── Default Budget Allocations (% of income) ─────────────────────────────────
 
+// Relative weights for splitting income ACROSS NON-SAVINGS CATEGORIES ONLY —
+// the user's own chosen savings % (onboarding) determines the savings split,
+// so `savings` is deliberately absent here. Normalized at budget-generation
+// time, so these only need to express relative proportions, not sum to 1.
 export const DEFAULT_BUDGET_PCT: Partial<Record<ExpenseCategory, number>> = {
   food:          0.20,
   transport:     0.10,
@@ -163,8 +167,10 @@ export const DEFAULT_BUDGET_PCT: Partial<Record<ExpenseCategory, number>> = {
   health:        0.05,
   education:     0.05,
   rent:          0.00, // varies too much to default
-  savings:       0.20,
 };
+
+/** Savings-rate presets offered during onboarding, as a fraction of monthly income. */
+export const SAVINGS_PCT_OPTIONS = [0.10, 0.15, 0.20, 0.25, 0.30, 0.40];
 
 // ─── Anomaly Detection ────────────────────────────────────────────────────────
 

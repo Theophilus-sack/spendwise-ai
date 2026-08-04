@@ -2,11 +2,13 @@ import React, { useEffect } from "react";
 import { NavigationContainer } from "@react-navigation/native";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { supabase } from "@/lib/supabase";
-import { registerForPushNotifications } from "@/lib/notifications";
+import { registerForPushNotifications, setupNotificationResponseHandling } from "@/lib/notifications";
 import { useAuthStore } from "@/store/authStore";
 import { AuthNavigator } from "./AuthNavigator";
 import { OnboardingNavigator } from "./OnboardingNavigator";
 import { AppNavigator } from "./AppNavigator";
+import { navigationRef } from "./navigationRef";
+import { linking } from "./linking";
 import type { RootStackParamList } from "./types";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -33,6 +35,8 @@ export function RootNavigator() {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => setupNotificationResponseHandling(), []);
+
   const needsOnboarding = session && profile && !profile.onboardingCompleted;
   const isAuthenticated = session && profile?.onboardingCompleted;
 
@@ -49,7 +53,7 @@ export function RootNavigator() {
   if (loading) return null; // Splash screen handles this
 
   return (
-    <NavigationContainer>
+    <NavigationContainer ref={navigationRef} linking={linking}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         {!session ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />

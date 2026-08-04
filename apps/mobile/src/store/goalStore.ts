@@ -36,13 +36,15 @@ export const useGoalStore = create<GoalState>((set, get) => ({
   addGoal: async (goal) => {
     await dbUpsertGoal(goal);
     set(s => ({ goals: [goal, ...s.goals] }));
-    await supabase.from('goals').upsert(goalToRemote(goal));
+    const { error } = await supabase.from('goals').upsert(goalToRemote(goal));
+    if (error) throw error;
   },
 
   updateGoal: async (goal) => {
     await dbUpsertGoal(goal);
     set(s => ({ goals: s.goals.map(g => g.id === goal.id ? goal : g) }));
-    await supabase.from('goals').upsert(goalToRemote(goal));
+    const { error } = await supabase.from('goals').upsert(goalToRemote(goal));
+    if (error) throw error;
   },
 
   contributeToGoal: async (goalId, amount) => {

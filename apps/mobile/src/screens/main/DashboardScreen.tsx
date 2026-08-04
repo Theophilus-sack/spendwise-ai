@@ -12,10 +12,11 @@ import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
 import { useIncomeStore }  from '@/store/incomeStore';
 import { useWeeklyReflectionStore } from '@/store/weeklyReflectionStore';
+import { useDisciplineStore } from '@/store/disciplineStore';
 import { StatCard, Card, BudgetBar } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
-  formatCurrency, formatDateShort, getCategoryEmoji, getCategoryLabel,
+  formatCurrency, formatCompact, formatDateShort, getCategoryEmoji, getCategoryLabel,
 } from '@spendwise/shared';
 import type { AppStackNavProp } from '@/navigation/types';
 
@@ -29,6 +30,7 @@ export function DashboardScreen() {
   const { budgets, load: loadBudgets }               = useBudgetStore();
   const { entries, load: loadIncome, getTotalThisMonth: getIncomeThisMonth } = useIncomeStore();
   const { current: currentReflection, streak: reflectionStreak, load: loadReflection } = useWeeklyReflectionStore();
+  const { score, grade, load: loadScore } = useDisciplineStore();
 
   const [coachDismissed, setCoachDismissed] = useState(false);
 
@@ -45,7 +47,7 @@ export function DashboardScreen() {
 
   const refresh = useCallback(async () => {
     if (!user) return;
-    await Promise.all([loadExpenses(user.id), loadBudgets(user.id), loadIncome(user.id), loadReflection(user.id)]);
+    await Promise.all([loadExpenses(user.id), loadBudgets(user.id), loadIncome(user.id), loadReflection(user.id), loadScore(user.id)]);
   }, [user]);
 
   useEffect(() => { refresh(); }, []);
@@ -140,24 +142,24 @@ export function DashboardScreen() {
           start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}
         >
           <Text style={styles.heroLabel}>Net Balance</Text>
-          <Text style={styles.heroAmount}>{formatCurrency(balance, currency)}</Text>
+          <Text style={styles.heroAmount} numberOfLines={1} adjustsFontSizeToFit>{formatCurrency(balance, currency)}</Text>
           <View style={styles.heroRow}>
             <View style={styles.heroStat}>
               <Ionicons name="arrow-down-circle" size={14} color="rgba(255,255,255,0.7)" />
               <Text style={styles.heroStatLabel}>Income</Text>
-              <Text style={styles.heroStatValue}>{formatCurrency(totalIncome, currency)}</Text>
+              <Text style={styles.heroStatValue} numberOfLines={1} adjustsFontSizeToFit>{formatCompact(totalIncome, currency)}</Text>
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroStat}>
               <Ionicons name="arrow-up-circle" size={14} color="rgba(255,255,255,0.7)" />
               <Text style={styles.heroStatLabel}>Spent</Text>
-              <Text style={styles.heroStatValue}>{formatCurrency(totalSpent, currency)}</Text>
+              <Text style={styles.heroStatValue} numberOfLines={1} adjustsFontSizeToFit>{formatCompact(totalSpent, currency)}</Text>
             </View>
             <View style={styles.heroDivider} />
             <View style={styles.heroStat}>
               <Ionicons name="trending-up" size={14} color="rgba(255,255,255,0.7)" />
               <Text style={styles.heroStatLabel}>Saved</Text>
-              <Text style={styles.heroStatValue}>{savingsRate.toFixed(0)}%</Text>
+              <Text style={styles.heroStatValue} numberOfLines={1} adjustsFontSizeToFit>{savingsRate.toFixed(0)}%</Text>
             </View>
           </View>
         </LinearGradient>
@@ -282,14 +284,16 @@ export function DashboardScreen() {
             icon="receipt-outline"
             iconColor={Colors.accent}
           />
-          <StatCard
-            label="Discipline Score"
-            value="—"
-            subtitle="tap to see"
-            icon="shield-checkmark-outline"
-            iconColor={Colors.primary}
-            style={{ flex: 1 }}
-          />
+          <TouchableOpacity activeOpacity={0.8} style={{ flex: 1 }} onPress={() => nav.navigate('ScoreDetail')}>
+            <StatCard
+              label="Discipline Score"
+              value={score !== null ? String(score) : '—'}
+              subtitle={grade ? `Grade ${grade} · tap for details` : 'tap to see'}
+              icon="shield-checkmark-outline"
+              iconColor={Colors.primary}
+              style={{ flex: 1 }}
+            />
+          </TouchableOpacity>
         </View>
 
         {/* ── AI Insight Banner ── */}

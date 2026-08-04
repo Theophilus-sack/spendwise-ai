@@ -62,6 +62,9 @@ export interface OnboardingData {
   incomeSources: IncomeSource[];
   spendingPersonality: SpendingPersonality;
   savingsFrequency: 'regular' | 'occasional' | 'none';
+  /** % of monthly income (0-1) the user chose to save during onboarding —
+   *  drives both `profiles.savings_target_pct` and the starter savings budget. */
+  savingsTargetPct: number;
   financialGoals: string[];
   preferredCategories: ExpenseCategory[];
   preferredPaymentMethods: PaymentMethod[];
@@ -135,6 +138,7 @@ export interface Budget {
   id: string;
   userId: string;
   category: ExpenseCategory | 'overall';
+  description?: string;
   limitAmount: number;
   period: BudgetPeriod;
   rollover: boolean;
