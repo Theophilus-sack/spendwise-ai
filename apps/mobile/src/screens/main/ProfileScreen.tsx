@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, Text, StyleSheet, SafeAreaView, TouchableOpacity, Alert } from 'react-native';
+import { View, Text, StyleSheet, SafeAreaView, ScrollView, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '@/store/authStore';
@@ -27,49 +27,52 @@ export function ProfileScreen() {
 
   return (
     <SafeAreaView style={styles.safe}>
-      {/* Profile Header */}
-      <View style={styles.header}>
-        <View style={styles.avatar}>
-          <Text style={styles.avatarText}>{profile?.fullName?.charAt(0)?.toUpperCase() ?? '?'}</Text>
+      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
+        {/* Profile Header */}
+        <View style={styles.header}>
+          <View style={styles.avatar}>
+            <Text style={styles.avatarText}>{profile?.fullName?.charAt(0)?.toUpperCase() ?? '?'}</Text>
+          </View>
+          <View>
+            <Text style={styles.name}>{profile?.fullName ?? 'User'}</Text>
+            <Text style={styles.currency}>💰 {profile?.currency ?? 'GHS'} · {profile?.spendingPersonality ?? 'balanced'}</Text>
+          </View>
         </View>
-        <View>
-          <Text style={styles.name}>{profile?.fullName ?? 'User'}</Text>
-          <Text style={styles.currency}>💰 {profile?.currency ?? 'GHS'} · {profile?.spendingPersonality ?? 'balanced'}</Text>
-        </View>
-      </View>
 
-      {/* Menu */}
-      <Card style={styles.menu}>
-        {menuItems.map(({ icon, label, action }, i) => (
-          <React.Fragment key={label}>
-            <TouchableOpacity style={styles.menuItem} onPress={action} activeOpacity={0.7}>
-              <View style={styles.menuIcon}>
-                <Ionicons name={icon as any} size={20} color={Colors.primary} />
-              </View>
-              <Text style={styles.menuLabel}>{label}</Text>
-              <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
-            </TouchableOpacity>
-            {i < menuItems.length - 1 && <View style={styles.divider} />}
-          </React.Fragment>
-        ))}
-      </Card>
+        {/* Menu */}
+        <Card style={styles.menu}>
+          {menuItems.map(({ icon, label, action }, i) => (
+            <React.Fragment key={label}>
+              <TouchableOpacity style={styles.menuItem} onPress={action} activeOpacity={0.7}>
+                <View style={styles.menuIcon}>
+                  <Ionicons name={icon as any} size={20} color={Colors.primary} />
+                </View>
+                <Text style={styles.menuLabel}>{label}</Text>
+                <Ionicons name="chevron-forward" size={16} color={Colors.textTertiary} />
+              </TouchableOpacity>
+              {i < menuItems.length - 1 && <View style={styles.divider} />}
+            </React.Fragment>
+          ))}
+        </Card>
 
-      <TouchableOpacity
-        style={styles.signOutBtn}
-        onPress={() => Alert.alert('Sign Out', 'Are you sure?', [
-          { text: 'Cancel' },
-          { text: 'Sign Out', style: 'destructive', onPress: signOut },
-        ])}
-      >
-        <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
-        <Text style={styles.signOutText}>Sign Out</Text>
-      </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.signOutBtn}
+          onPress={() => Alert.alert('Sign Out', 'Are you sure?', [
+            { text: 'Cancel' },
+            { text: 'Sign Out', style: 'destructive', onPress: signOut },
+          ])}
+        >
+          <Ionicons name="log-out-outline" size={20} color={Colors.danger} />
+          <Text style={styles.signOutText}>Sign Out</Text>
+        </TouchableOpacity>
+      </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  safe:      { flex: 1, backgroundColor: Colors.background, padding: Spacing.base, gap: Spacing.base },
+  safe:      { flex: 1, backgroundColor: Colors.background },
+  content:   { padding: Spacing.base, gap: Spacing.base, paddingBottom: Spacing.xxxl },
   header:    { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md },
   avatar:    { width: 60, height: 60, borderRadius: 30, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   avatarText:{ fontSize: Typography.xl, fontWeight: Typography.bold, color: '#fff' },

@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, Easing,
+  Animated, Easing, Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -10,9 +10,9 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore }   from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
-import { Card }            from '@/components/ui';
+import { Card, Button }    from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
-import { formatCurrency, getCategoryEmoji, getCategoryLabel, SPENDING_ALTERNATIVES } from '@spendwise/shared';
+import { formatCurrency, getCategoryEmoji, getCategoryLabel, SPENDING_ALTERNATIVES, generateUUID } from '@spendwise/shared';
 import type { AppStackNavProp } from '@/navigation/types';
 import type { ExpenseCategory } from '@spendwise/shared';
 
@@ -22,18 +22,23 @@ const ADJUSTABLE_CATEGORIES: ExpenseCategory[] = [
 
 export function WhatIfScreen() {
   const nav = useNavigation<AppStackNavProp>();
-  const { profile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const { getTotalThisMonth, getSpendingByCategory } = useExpenseStore();
-  const { budgets } = useBudgetStore();
+  const { budgets, load: loadBudgets, upsertBudget } = useBudgetStore();
 
   const currency    = (profile?.currency ?? 'GHS') as any;
   const totalIncome = profile?.monthlyIncome ?? 0;
   const totalSpent  = getTotalThisMonth();
   const byCategory  = getSpendingByCategory();
 
+  useEffect(() => {
+    if (user) loadBudgets(user.id);
+  }, [user?.id]);
+
   // Reduction sliders (0-80% reduction per category)
   const [reductions, setReductions] = useState<Record<string, number>>({});
   const [expandedAlt, setExpandedAlt] = useState<string | null>(null);
+  const [committing, setCommitting] = useState(false);
 
   // Blinking animation for alternatives hint
   const blinkAnim = useRef(new Animated.Value(1)).current;
@@ -77,6 +82,63 @@ export function WhatIfScreen() {
   };
 
   const hasAnyReduction = Object.values(reductions).some(v => v > 0);
+
+  const adjustedCategories = ADJUSTABLE_CATEGORIES
+    .filter(cat => (reductions[cat] ?? 0) > 0)
+    .map(cat => {
+      const spent = byCategory[cat] ?? 0;
+      const reduction = reductions[cat] ?? 0;
+      const existing = budgets.find(b => b.category === cat);
+      const newLimit = Math.round((spent * (1 - reduction / 100)) / 10) * 10;
+      return { cat, existing, newLimit };
+    });
+
+  // Nothing is written to the budget until the user explicitly confirms —
+  // this only ever runs from the "Yes, update my budget" button below.
+  const handleCommit = () => {
+    if (!user || adjustedCategories.length === 0) return;
+
+    const lines = adjustedCategories.map(({ cat, existing, newLimit }) =>
+      `${getCategoryLabel(cat)}: ${existing ? formatCurrency(existing.limitAmount, currency) : 'no budget set'} → ${formatCurrency(newLimit, currency)}/mo`
+    ).join('\n');
+
+    Alert.alert(
+      'Update your budget?',
+      `This will set the following monthly limits based on your adjustments:\n\n${lines}`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Yes, update my budget',
+          onPress: async () => {
+            setCommitting(true);
+            try {
+              const now = new Date().toISOString();
+              for (const { cat, existing, newLimit } of adjustedCategories) {
+                await upsertBudget({
+                  id:          existing?.id ?? generateUUID(),
+                  userId:      user.id,
+                  category:    cat,
+                  description: existing?.description,
+                  limitAmount: newLimit,
+                  period:      existing?.period ?? 'monthly',
+                  rollover:    existing?.rollover ?? false,
+                  aiSuggested: false,
+                  createdAt:   existing?.createdAt ?? now,
+                  updatedAt:   now,
+                });
+              }
+              setReductions({});
+              Alert.alert('Budget updated', 'Your adjustments are now your real monthly budget — check the Budget tab to see it.');
+            } catch (err) {
+              Alert.alert('Could not update budget', err instanceof Error ? err.message : 'Please try again.');
+            } finally {
+              setCommitting(false);
+            }
+          },
+        },
+      ],
+    );
+  };
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -186,6 +248,17 @@ export function WhatIfScreen() {
             <Text style={styles.summaryAmount}>{formatCurrency(savedAmount, currency)}</Text>
             <Text style={styles.summarySubtitle}>per month if you follow these adjustments</Text>
           </LinearGradient>
+        )}
+
+        {/* ── Commit to real budget — only happens if the user explicitly confirms ── */}
+        {hasAnyReduction && (
+          <Button
+            label={committing ? 'Updating…' : 'Turn this into my real budget'}
+            onPress={handleCommit}
+            loading={committing}
+            variant="outline"
+            fullWidth
+          />
         )}
 
         {/* ── AI Coach suggestion ── */}
