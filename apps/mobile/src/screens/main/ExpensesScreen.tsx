@@ -23,7 +23,10 @@ import {
   formatDateShort,
   getCategoryEmoji,
   getCategoryLabel,
+  getCustomCategories,
+  sortCategoriesByUsage,
   CATEGORIES,
+  CATEGORY_LIST,
 } from "@spendwise/shared";
 import type { Expense, ExpenseCategory } from "@spendwise/shared";
 import type { AppStackNavProp } from "@/navigation/types";
@@ -37,6 +40,17 @@ export function ExpensesScreen() {
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState<ExpenseCategory | "all">("all");
+
+  // Filter chips reflect each user's own spending: custom categories
+  // actually used on a real expense (e.g. "Trustwash") are included instead
+  // of only ever offering the fixed built-in list, and the whole set is
+  // ordered by how often each category actually appears — most-used right
+  // after "All" — rather than one fixed order for everyone.
+  const categoryFilterIds = useMemo(() => {
+    const used = expenses.map((e) => e.category);
+    const customCategories = getCustomCategories(used);
+    return sortCategoriesByUsage([...CATEGORY_LIST, ...customCategories], used);
+  }, [expenses]);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
@@ -139,10 +153,10 @@ export function ExpensesScreen() {
         style={styles.filterList}
         data={[
           { id: "all", label: "All", emoji: "📋" },
-          ...Object.entries(CATEGORIES).map(([id, { label, emoji }]) => ({
+          ...categoryFilterIds.map((id) => ({
             id,
-            label,
-            emoji,
+            label: CATEGORIES[id as keyof typeof CATEGORIES]?.label ?? id,
+            emoji: CATEGORIES[id as keyof typeof CATEGORIES]?.emoji ?? "✨",
           })),
         ]}
         keyExtractor={(i) => i.id}

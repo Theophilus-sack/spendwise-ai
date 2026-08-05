@@ -159,6 +159,18 @@ export function getCustomCategories(categories: Array<string | undefined | null>
   return [...seen].sort((a, b) => a.localeCompare(b));
 }
 
+/** `categories` ordered by how often each one appears in `used`, most-used
+ *  first — e.g. category filter chips reflecting each user's own real
+ *  spending pattern instead of one fixed order for everyone. Ties (including
+ *  categories never used at all) keep their original relative order, since
+ *  Array.prototype.sort is a stable sort — put built-ins in their canonical
+ *  order and custom ones after for a sensible default tie-break. */
+export function sortCategoriesByUsage<T extends string>(categories: T[], used: string[]): T[] {
+  const counts = new Map<string, number>();
+  for (const u of used) counts.set(u, (counts.get(u) ?? 0) + 1);
+  return [...categories].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0));
+}
+
 // ─── Numbers ──────────────────────────────────────────────────────────────────
 
 export function pct(value: number, total: number): number {
