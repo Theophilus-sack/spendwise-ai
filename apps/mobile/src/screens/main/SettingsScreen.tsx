@@ -1,8 +1,9 @@
 import React, { useCallback, useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, SafeAreaView,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
   Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { supabase, callEdgeFunction } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -34,12 +35,16 @@ export function SettingsScreen() {
   const [discipline,   setDiscipline]   = useState<DisciplineStyle>(profile?.disciplineStyle ?? 'flexible');
   const [savingsPctInput, setSavingsPctInput] = useState(String(profile?.savingsTargetPct ?? 20));
   const [savingPrefs,  setSavingPrefs]  = useState(false);
+  const [savingsPctError, setSavingsPctError] = useState<string | null>(null);
+  const [prefsError,      setPrefsError]      = useState<string | null>(null);
 
   const handleSavePreferences = async () => {
     if (!user) return;
+    setSavingsPctError(null);
+    setPrefsError(null);
     const pct = parseFloat(savingsPctInput);
     if (isNaN(pct) || pct < 0 || pct > 100) {
-      Alert.alert('Invalid value', 'Savings target must be a percentage between 0 and 100.');
+      setSavingsPctError('Must be a percentage between 0 and 100.');
       return;
     }
     setSavingPrefs(true);
@@ -55,7 +60,7 @@ export function SettingsScreen() {
       await fetchProfile();
       Alert.alert('Saved', 'Your preferences have been updated.');
     } catch (err) {
-      Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
+      setPrefsError(err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSavingPrefs(false);
     }
@@ -65,10 +70,16 @@ export function SettingsScreen() {
   const [newPassword,     setNewPassword]     = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword,  setSavingPassword]  = useState(false);
+  const [newPasswordError, setNewPasswordError] = useState<string | null>(null);
+  const [confirmPasswordError, setConfirmPasswordError] = useState<string | null>(null);
+  const [passwordFormError, setPasswordFormError] = useState<string | null>(null);
 
   const handleUpdatePassword = async () => {
-    if (newPassword.length < 8) { Alert.alert('Too short', 'Password must be at least 8 characters.'); return; }
-    if (newPassword !== confirmPassword) { Alert.alert('Mismatch', 'Passwords do not match.'); return; }
+    setNewPasswordError(null);
+    setConfirmPasswordError(null);
+    setPasswordFormError(null);
+    if (newPassword.length < 8) { setNewPasswordError('Must be at least 8 characters.'); return; }
+    if (newPassword !== confirmPassword) { setConfirmPasswordError('Passwords do not match.'); return; }
 
     setSavingPassword(true);
     try {
@@ -78,7 +89,7 @@ export function SettingsScreen() {
       setConfirmPassword('');
       Alert.alert('Password updated', 'Your password has been changed.');
     } catch (err) {
-      Alert.alert('Could not update password', err instanceof Error ? err.message : 'Please try again.');
+      setPasswordFormError(err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSavingPassword(false);
     }
@@ -86,10 +97,14 @@ export function SettingsScreen() {
 
   const [newEmail,    setNewEmail]    = useState('');
   const [savingEmail, setSavingEmail] = useState(false);
+  const [newEmailError, setNewEmailError] = useState<string | null>(null);
+  const [emailFormError, setEmailFormError] = useState<string | null>(null);
 
   const handleUpdateEmail = async () => {
+    setNewEmailError(null);
+    setEmailFormError(null);
     const trimmed = newEmail.trim();
-    if (!trimmed || !trimmed.includes('@')) { Alert.alert('Invalid email', 'Enter a valid email address.'); return; }
+    if (!trimmed || !trimmed.includes('@')) { setNewEmailError('Enter a valid email address.'); return; }
 
     setSavingEmail(true);
     try {
@@ -98,7 +113,7 @@ export function SettingsScreen() {
       setNewEmail('');
       Alert.alert('Check your inbox', `We sent a confirmation link to ${trimmed}. Your email won't change until you confirm it.`);
     } catch (err) {
-      Alert.alert('Could not update email', err instanceof Error ? err.message : 'Please try again.');
+      setEmailFormError(err instanceof Error ? err.message : 'Please try again.');
     } finally {
       setSavingEmail(false);
     }
@@ -106,6 +121,7 @@ export function SettingsScreen() {
 
   // ── Danger zone ───────────────────────────────────────────────────────────
   const [deleting, setDeleting] = useState(false);
+  const [dangerFormError, setDangerFormError] = useState<string | null>(null);
 
   const confirmDeleteAccount = () => {
     Alert.alert(
@@ -120,11 +136,12 @@ export function SettingsScreen() {
 
   const doDeleteAccount = async () => {
     setDeleting(true);
+    setDangerFormError(null);
     try {
       await callEdgeFunction('delete-account');
       await signOut();
     } catch (err) {
-      Alert.alert('Could not delete account', err instanceof Error ? err.message : 'Please try again.');
+      setDangerFormError(err instanceof Error ? err.message : 'Please try again.');
       setDeleting(false);
     }
   };
@@ -211,8 +228,10 @@ export function SettingsScreen() {
               onChangeText={setSavingsPctInput}
               keyboardType="decimal-pad"
               placeholder="20"
+              error={savingsPctError ?? undefined}
             />
 
+            {prefsError && <Text style={styles.formError}>{prefsError}</Text>}
             <Button label="Save Preferences" onPress={handleSavePreferences} loading={savingPrefs} fullWidth />
           </Card>
 
@@ -230,7 +249,9 @@ export function SettingsScreen() {
               keyboardType="email-address"
               autoCapitalize="none"
               leftIcon="mail-outline"
+              error={newEmailError ?? undefined}
             />
+            {emailFormError && <Text style={styles.formError}>{emailFormError}</Text>}
             <Button label="Update Email" onPress={handleUpdateEmail} loading={savingEmail} variant="outline" fullWidth />
 
             <View style={styles.divider} />
@@ -242,6 +263,7 @@ export function SettingsScreen() {
               placeholder="At least 8 characters"
               isPassword
               leftIcon="lock-closed-outline"
+              error={newPasswordError ?? undefined}
             />
             <Text style={styles.fieldLabel}>Confirm new password</Text>
             <Input
@@ -250,7 +272,9 @@ export function SettingsScreen() {
               placeholder="Repeat your new password"
               isPassword
               leftIcon="lock-closed-outline"
+              error={confirmPasswordError ?? undefined}
             />
+            {passwordFormError && <Text style={styles.formError}>{passwordFormError}</Text>}
             <Button label="Update Password" onPress={handleUpdatePassword} loading={savingPassword} variant="outline" fullWidth />
           </Card>
 
@@ -260,6 +284,7 @@ export function SettingsScreen() {
             <Text style={styles.dangerText}>
               Deleting your account is permanent. All your expenses, budgets, goals, income, debts, and AI conversation history will be erased immediately and cannot be recovered.
             </Text>
+            {dangerFormError && <Text style={styles.formError}>{dangerFormError}</Text>}
             <Button label="Delete Account" onPress={confirmDeleteAccount} loading={deleting} variant="danger" fullWidth />
           </Card>
 
@@ -299,6 +324,7 @@ const styles = StyleSheet.create({
   optionDesc:      { fontSize: Typography.xs, color: Colors.textSecondary },
 
   currentValue: { fontSize: Typography.base, color: Colors.textSecondary },
+  formError:    { fontSize: Typography.sm, color: Colors.danger, textAlign: 'center' },
   divider:      { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.xs },
 
   dangerTitle: { color: Colors.danger },

@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  SafeAreaView, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
@@ -32,6 +32,26 @@ export function OnboardingWizard() {
   });
 
   const update = (patch: Partial<OnboardingData>) => setData(d => ({ ...d, ...patch }));
+
+  // Every step except the final summary can be skipped — most of what's
+  // collected here (income sources, goals, categories, payment methods)
+  // isn't read anywhere outside this wizard yet, and the rest already has
+  // safe fallback defaults. Only income (step 0) actually degrades the
+  // experience if left unset, so that's the one skip that warns first.
+  const handleSkip = () => {
+    if (step === 0) {
+      Alert.alert(
+        'Skip for now?',
+        `You can add your income anytime from Settings. Until then, your starter budget will show ${formatCurrency(0, data.currency ?? 'GHS')} limits.`,
+        [
+          { text: 'Go back', style: 'cancel' },
+          { text: 'Skip', onPress: () => setStep(s => s + 1) },
+        ],
+      );
+      return;
+    }
+    setStep(s => s + 1);
+  };
 
   const toggleItem = <T extends string>(list: T[], item: T): T[] =>
     list.includes(item) ? list.filter(x => x !== item) : [...list, item];
@@ -305,6 +325,11 @@ export function OnboardingWizard() {
           loading={loading}
           fullWidth size="lg"
         />
+        {step < TOTAL_STEPS - 1 && (
+          <TouchableOpacity onPress={handleSkip} hitSlop={8}>
+            <Text style={styles.skipText}>Skip for now</Text>
+          </TouchableOpacity>
+        )}
         <Text style={styles.stepCount}>{step + 1} of {TOTAL_STEPS}</Text>
       </View>
     </SafeAreaView>
@@ -378,6 +403,7 @@ const styles = StyleSheet.create({
   content:     { padding: Spacing.lg, paddingTop: Spacing.xl, paddingBottom: Spacing.xxxl },
   footer:      { padding: Spacing.base, gap: Spacing.sm, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
   stepCount:   { textAlign: 'center', fontSize: Typography.xs, color: Colors.textTertiary },
+  skipText:    { textAlign: 'center', fontSize: Typography.sm, color: Colors.textTertiary, fontWeight: Typography.medium, paddingTop: Spacing.xs },
 
   stepWrapper:  { gap: Spacing.lg },
   stepEmoji:    { fontSize: 52, textAlign: 'center' },

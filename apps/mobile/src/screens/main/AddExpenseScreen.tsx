@@ -1,8 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  KeyboardAvoidingView, Platform, SafeAreaView, TextInput, Alert,
+  KeyboardAvoidingView, Platform, TextInput, Alert,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore }    from '@/store/authStore';
@@ -38,6 +39,8 @@ export function AddExpenseScreen() {
   const [loading,         setLoading]         = useState(false);
   const [mode,            setMode]            = useState<'form' | 'nlp'>('form');
   const [nlpLoading,      setNlpLoading]      = useState(false);
+  const [customCategoryError, setCustomCategoryError] = useState<string | null>(null);
+  const [formError,           setFormError]           = useState<string | null>(null);
 
   const currency = (profile?.currency ?? 'GHS') as any;
 
@@ -78,13 +81,15 @@ export function AddExpenseScreen() {
   };
 
   const handleSave = async () => {
+    setCustomCategoryError(null);
+    setFormError(null);
     const amountNum = parseFloat(amount);
     if (isNaN(amountNum) || amountNum <= 0) {
       Alert.alert('Invalid amount', 'Please enter a valid amount.');
       return;
     }
     if (useCustomCategory && !customCategory.trim()) {
-      Alert.alert('Category needed', 'Type a category name, or switch back to one of the presets.');
+      setCustomCategoryError('Type a category name, or switch back to one of the presets.');
       return;
     }
     if (!user) return;
@@ -97,7 +102,7 @@ export function AddExpenseScreen() {
       });
       nav.goBack();
     } catch (err: any) {
-      Alert.alert('Error', err.message ?? 'Could not save expense');
+      setFormError(err.message ?? 'Could not save expense');
     } finally {
       setLoading(false);
     }
@@ -159,13 +164,22 @@ export function AddExpenseScreen() {
                 />
               </View>
 
+              {/* Merchant */}
+              <Input
+                label="Merchant"
+                placeholder="e.g. KFC, Bolt, DSTV..."
+                value={merchantName}
+                onChangeText={setMerchantName}
+                leftIcon="storefront-outline"
+              />
+
               {/* Description */}
               <Input
-                label="Merchant / Description"
-                placeholder="e.g. KFC, Bolt, DSTV..."
-                value={merchantName || description}
-                onChangeText={v => { setMerchantName(v); setDescription(v); }}
-                leftIcon="storefront-outline"
+                label="Description (optional)"
+                placeholder="What was this for?"
+                value={description}
+                onChangeText={setDescription}
+                leftIcon="document-outline"
               />
 
               {/* Category */}
@@ -201,6 +215,7 @@ export function AddExpenseScreen() {
                     onChangeText={setCustomCategory}
                     leftIcon="pricetag-outline"
                     autoFocus
+                    error={customCategoryError ?? undefined}
                   />
                 )}
               </View>
@@ -249,6 +264,7 @@ export function AddExpenseScreen() {
 
         {/* Save button */}
         <View style={styles.footer}>
+          {formError && <Text style={styles.formError}>{formError}</Text>}
           <Button label="Save Expense" onPress={handleSave} loading={loading} fullWidth size="lg" />
         </View>
       </KeyboardAvoidingView>
@@ -260,7 +276,8 @@ const styles = StyleSheet.create({
   safe:    { flex: 1, backgroundColor: Colors.background },
   flex:    { flex: 1 },
   content: { padding: Spacing.base, paddingBottom: Spacing.xxxl, gap: Spacing.base },
-  footer:  { padding: Spacing.base, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
+  footer:  { padding: Spacing.base, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.sm },
+  formError: { fontSize: Typography.sm, color: Colors.danger, textAlign: 'center' },
 
   modeToggle:       { flexDirection: 'row', backgroundColor: Colors.surfaceAlt, margin: Spacing.base, borderRadius: Radius.lg, padding: 4 },
   modeTab:          { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.sm, gap: 6, borderRadius: Radius.md },

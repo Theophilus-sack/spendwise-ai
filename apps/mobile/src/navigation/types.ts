@@ -5,15 +5,17 @@ import type { CompositeNavigationProp } from '@react-navigation/native';
 // ─── Stack Param Lists ────────────────────────────────────────────────────────
 
 export type RootStackParamList = {
-  Auth:       undefined;
-  Onboarding: undefined;
-  App:        undefined;
+  Auth:           undefined;
+  Onboarding:     undefined;
+  App:            undefined;
+  ResetPassword:  undefined;
 };
 
 export type AuthStackParamList = {
-  Splash:  undefined;
-  Login:   undefined;
-  SignUp:  undefined;
+  Splash:         undefined;
+  Login:          undefined;
+  SignUp:         undefined;
+  ForgotPassword: undefined;
 };
 
 export type OnboardingStackParamList = {

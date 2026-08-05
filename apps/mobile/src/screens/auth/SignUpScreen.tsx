@@ -16,11 +16,17 @@ export function SignUpScreen() {
   const [password, setPassword] = useState('');
   const [confirm,  setConfirm]  = useState('');
   const [loading,  setLoading]  = useState(false);
+  const [passwordError, setPasswordError] = useState<string | null>(null);
+  const [confirmError,  setConfirmError]  = useState<string | null>(null);
+  const [formError,     setFormError]     = useState<string | null>(null);
 
   const handleSignUp = async () => {
     if (!fullName.trim() || !email.trim() || !password) return;
-    if (password !== confirm) { Alert.alert('Error', 'Passwords do not match'); return; }
-    if (password.length < 8)  { Alert.alert('Error', 'Password must be at least 8 characters'); return; }
+    setPasswordError(null);
+    setConfirmError(null);
+    setFormError(null);
+    if (password !== confirm) { setConfirmError('Passwords do not match'); return; }
+    if (password.length < 8)  { setPasswordError('Password must be at least 8 characters'); return; }
 
     setLoading(true);
     try {
@@ -29,7 +35,7 @@ export function SignUpScreen() {
         password,
         options: { data: { full_name: fullName.trim() } },
       });
-      if (error) Alert.alert('Sign up failed', error.message);
+      if (error) setFormError(error.message);
       else Alert.alert('Check your email', 'We sent you a confirmation link.', [
         { text: 'OK', onPress: () => nav.navigate('Login') },
       ]);
@@ -72,6 +78,7 @@ export function SignUpScreen() {
             onChangeText={setPassword}
             isPassword
             leftIcon="lock-closed-outline"
+            error={passwordError ?? undefined}
           />
           <Input
             label="Confirm password"
@@ -80,7 +87,9 @@ export function SignUpScreen() {
             onChangeText={setConfirm}
             isPassword
             leftIcon="lock-closed-outline"
+            error={confirmError ?? undefined}
           />
+          {formError && <Text style={styles.formError}>{formError}</Text>}
           <Button label="Create Account" onPress={handleSignUp} loading={loading} fullWidth size="lg" />
         </View>
 
@@ -106,4 +115,5 @@ const styles = StyleSheet.create({
   footer:     { flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
   footerText: { fontSize: Typography.base, color: Colors.textSecondary },
   link:       { fontSize: Typography.base, color: Colors.primary, fontWeight: Typography.semibold },
+  formError:  { fontSize: Typography.sm, color: Colors.danger, textAlign: 'center' },
 });

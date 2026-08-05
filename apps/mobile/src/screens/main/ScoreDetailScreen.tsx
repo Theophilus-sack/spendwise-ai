@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
-import { View, Text, StyleSheet, SafeAreaView, ScrollView, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Card, ScoreRing, Button } from '@/components/ui';
 import { Colors, Typography, Spacing } from '@/theme';
 import { FDS_WEIGHTS } from '@spendwise/shared';

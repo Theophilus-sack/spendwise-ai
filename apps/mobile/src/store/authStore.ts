@@ -10,9 +10,17 @@ interface AuthState {
   user:     User | null;
   profile:  UserProfile | null;
   loading:  boolean;
+  /** True the moment a session was established via a password-recovery link
+   *  (Supabase fires a distinct 'PASSWORD_RECOVERY' auth event for this,
+   *  rather than 'SIGNED_IN') — the session is real, but RootNavigator must
+   *  force the "set a new password" screen before treating the user as
+   *  normally logged in, otherwise they'd get silently dropped straight
+   *  into the app with the recovery link acting as an unintended login. */
+  passwordRecoveryPending: boolean;
 
   setSession:  (session: Session | null) => void;
   setProfile:  (profile: UserProfile | null) => void;
+  setPasswordRecoveryPending: (pending: boolean) => void;
   signOut:     () => Promise<void>;
   fetchProfile: () => Promise<void>;
 }
@@ -22,6 +30,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   user:     null,
   profile:  null,
   loading:  true,
+  passwordRecoveryPending: false,
 
   setSession: (session) => {
     const newUserId  = session?.user?.id ?? null;
@@ -40,6 +49,8 @@ export const useAuthStore = create<AuthState>((set, get) => ({
 
   setProfile: (profile) => set({ profile }),
 
+  setPasswordRecoveryPending: (pending) => set({ passwordRecoveryPending: pending }),
+
   signOut: async () => {
     // The remote call can legitimately fail (e.g. the session's account was
     // just deleted server-side) — local cleanup must still happen regardless,
@@ -51,7 +62,7 @@ export const useAuthStore = create<AuthState>((set, get) => ({
     }
     resetAllUserStores();
     await dbClearAll();
-    set({ session: null, user: null, profile: null });
+    set({ session: null, user: null, profile: null, passwordRecoveryPending: false });
   },
 
   fetchProfile: async () => {

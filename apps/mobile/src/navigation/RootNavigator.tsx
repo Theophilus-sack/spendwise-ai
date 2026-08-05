@@ -9,6 +9,7 @@ import { useAuthStore } from "@/store/authStore";
 import { AuthNavigator } from "./AuthNavigator";
 import { OnboardingNavigator } from "./OnboardingNavigator";
 import { AppNavigator } from "./AppNavigator";
+import { ResetPasswordScreen } from "@/screens/auth/ResetPasswordScreen";
 import { navigationRef } from "./navigationRef";
 import { linking } from "./linking";
 import type { RootStackParamList } from "./types";
@@ -16,7 +17,7 @@ import type { RootStackParamList } from "./types";
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 export function RootNavigator() {
-  const { session, user, profile, loading, setSession, fetchProfile } =
+  const { session, user, profile, loading, passwordRecoveryPending, setSession, setPasswordRecoveryPending, fetchProfile } =
     useAuthStore();
 
   useEffect(() => {
@@ -26,10 +27,15 @@ export function RootNavigator() {
       if (session) fetchProfile();
     });
 
-    // Listen for auth state changes
+    // Listen for auth state changes. A password-recovery email link
+    // establishes a real session, but fires the distinct 'PASSWORD_RECOVERY'
+    // event rather than 'SIGNED_IN' — that's the only way to tell "this
+    // session exists so the user can set a new password" apart from a normal
+    // login, which matters below so it doesn't just drop them into the app.
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'PASSWORD_RECOVERY') setPasswordRecoveryPending(true);
       setSession(session);
       if (session) fetchProfile();
     });
@@ -76,7 +82,11 @@ export function RootNavigator() {
   return (
     <NavigationContainer ref={navigationRef} linking={linking}>
       <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!session ? (
+        {passwordRecoveryPending ? (
+          // Takes priority over everything else — a session existing here is
+          // specifically the recovery link's session, not a normal login.
+          <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
+        ) : !session ? (
           <Stack.Screen name="Auth" component={AuthNavigator} />
         ) : needsOnboarding ? (
           <Stack.Screen name="Onboarding" component={OnboardingNavigator} />

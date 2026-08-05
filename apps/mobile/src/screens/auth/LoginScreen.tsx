@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert, KeyboardAvoidingView, Platform,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { supabase } from '@/lib/supabase';
@@ -14,13 +14,15 @@ export function LoginScreen() {
   const [email,    setEmail]    = useState('');
   const [password, setPassword] = useState('');
   const [loading,  setLoading]  = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   const handleLogin = async () => {
     if (!email.trim() || !password) return;
+    setFormError(null);
     setLoading(true);
     try {
       const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) Alert.alert('Login failed', error.message);
+      if (error) setFormError(error.message);
     } finally {
       setLoading(false);
     }
@@ -55,7 +57,11 @@ export function LoginScreen() {
             isPassword
             leftIcon="lock-closed-outline"
           />
+          {formError && <Text style={styles.formError}>{formError}</Text>}
           <Button label="Sign In" onPress={handleLogin} loading={loading} fullWidth size="lg" />
+          <TouchableOpacity onPress={() => nav.navigate('ForgotPassword')} style={styles.forgotBtn}>
+            <Text style={styles.link}>Forgot password?</Text>
+          </TouchableOpacity>
         </View>
 
         {/* Divider */}
@@ -85,6 +91,8 @@ const styles = StyleSheet.create({
   title:     { fontSize: Typography.xxl, fontWeight: Typography.bold, color: Colors.text },
   subtitle:  { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center' },
   form:      { gap: Spacing.md, backgroundColor: Colors.surface, padding: Spacing.lg, borderRadius: Radius.xl },
+  forgotBtn: { alignItems: 'center', paddingTop: Spacing.xs },
+  formError: { fontSize: Typography.sm, color: Colors.danger, textAlign: 'center' },
   divider:   { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   line:      { flex: 1, height: 1, backgroundColor: Colors.border },
   dividerText: { fontSize: Typography.sm, color: Colors.textSecondary },

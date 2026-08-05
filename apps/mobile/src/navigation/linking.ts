@@ -31,10 +31,15 @@ export const linking: LinkingOptions<RootStackParamList> = {
       },
       Auth: {
         screens: {
-          Login:  'login',
-          SignUp: 'signup',
+          Login:          'login',
+          SignUp:         'signup',
+          ForgotPassword: 'forgot-password',
         },
       },
+      // Root-level, not nested under Auth — RootNavigator renders this
+      // screen outright (ahead of the Auth/App choice) whenever
+      // passwordRecoveryPending is true, regardless of session state.
+      ResetPassword: 'reset-password',
     },
   },
 };

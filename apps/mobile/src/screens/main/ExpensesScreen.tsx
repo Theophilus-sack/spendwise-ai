@@ -218,9 +218,18 @@ export function ExpensesScreen() {
                 )}
               </View>
             </View>
-            <Text style={styles.expAmount}>
-              -{formatCurrency(e.amount, currency)}
-            </Text>
+            <View style={styles.expRight}>
+              <Text style={styles.expAmount}>
+                -{formatCurrency(e.amount, currency)}
+              </Text>
+              <TouchableOpacity
+                onPress={() => confirmDelete(e)}
+                hitSlop={8}
+                style={styles.expMenuBtn}
+              >
+                <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
+              </TouchableOpacity>
+            </View>
           </TouchableOpacity>
         )}
         ListEmptyComponent={
@@ -230,14 +239,6 @@ export function ExpensesScreen() {
           </View>
         }
       />
-
-      {/* FAB */}
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => nav.navigate("AddExpense", {})}
-      >
-        <Ionicons name="add" size={28} color="#fff" />
-      </TouchableOpacity>
     </SafeAreaView>
   );
 }
@@ -350,7 +351,7 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     color: Colors.text,
   },
-  list: { padding: Spacing.base, gap: Spacing.sm, paddingBottom: 100 },
+  list: { padding: Spacing.base, gap: Spacing.sm },
   expenseRow: {
     flexDirection: "row",
     alignItems: "center",
@@ -393,24 +394,14 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     letterSpacing: 0.5,
   },
+  expRight: { alignItems: "flex-end", gap: 4 },
   expAmount: {
     fontSize: Typography.base,
     fontWeight: Typography.semibold,
     color: Colors.text,
   },
+  expMenuBtn: { padding: 2 },
   empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
   emptyEmoji: { fontSize: 48 },
   emptyText: { fontSize: Typography.base, color: Colors.textSecondary },
-  fab: {
-    position: "absolute",
-    right: Spacing.lg,
-    bottom: Spacing.xl,
-    width: 56,
-    height: 56,
-    borderRadius: Radius.full,
-    backgroundColor: Colors.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    ...Shadows.primary,
-  },
 });

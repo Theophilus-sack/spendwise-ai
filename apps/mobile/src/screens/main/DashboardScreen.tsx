@@ -18,10 +18,10 @@ import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
   formatCurrency, formatCompact, formatDateShort, getCategoryEmoji, getCategoryLabel,
 } from '@spendwise/shared';
-import type { AppStackNavProp } from '@/navigation/types';
+import type { HomeTabNavProp } from '@/navigation/types';
 
 export function DashboardScreen() {
-  const nav     = useNavigation<AppStackNavProp>();
+  const nav     = useNavigation<HomeTabNavProp>();
   const { user, profile } = useAuthStore();
   const {
     expenses, loading: expLoading, load: loadExpenses,
@@ -75,12 +75,16 @@ export function DashboardScreen() {
     incomeSpentPct < 85  ? 'Moderate – spending is approaching income' :
                            'Critical – spending is nearly all of income';
 
-  // Overall budget health
+  // Overall budget health — "on track" only means something once budgets
+  // actually exist. Onboarding always creates a row per category (even with
+  // $0 limits when income is unset/skipped), so budgets.length alone isn't
+  // a reliable signal — check for an actual nonzero limit instead.
   const totalBudgetLimit = budgets.reduce((s, b) => s + b.limitAmount, 0);
   const budgetSpentPct   = totalBudgetLimit > 0 ? Math.min((totalSpent / totalBudgetLimit) * 100, 100) : 0;
   const overBudgetCount  = budgetStatuses.filter(b => b.isOver).length;
-  const budgetHealthOk   = overBudgetCount === 0;
-  const budgetColor      = budgetHealthOk ? Colors.success : Colors.danger;
+  const hasBudgets       = totalBudgetLimit > 0;
+  const budgetHealthOk   = hasBudgets && overBudgetCount === 0;
+  const budgetColor      = !hasBudgets ? Colors.textTertiary : budgetHealthOk ? Colors.success : Colors.danger;
 
   // Show AI coach when any budget is exceeded
   const showAICoach = overBudgetCount > 0 && !coachDismissed;
@@ -226,19 +230,27 @@ export function DashboardScreen() {
         {/* ── Budget Health Bar ── */}
         <Card style={styles.budgetHealthCard}>
           <View style={styles.budgetHealthHeader}>
-            <Ionicons name={budgetHealthOk ? 'shield-checkmark-outline' : 'warning-outline'} size={20} color={budgetColor} />
+            <Ionicons
+              name={!hasBudgets ? 'help-circle-outline' : budgetHealthOk ? 'shield-checkmark-outline' : 'warning-outline'}
+              size={20}
+              color={budgetColor}
+            />
             <Text style={styles.budgetHealthTitle}>Overall Budget Health</Text>
             <View style={[styles.healthBadge, { backgroundColor: budgetColor + '18', borderColor: budgetColor + '40' }]}>
               <Text style={[styles.healthBadgeText, { color: budgetColor }]}>
-                {budgetHealthOk ? 'ON TRACK' : `${overBudgetCount} OVER`}
+                {!hasBudgets ? 'NO BUDGETS' : budgetHealthOk ? 'ON TRACK' : `${overBudgetCount} OVER`}
               </Text>
             </View>
           </View>
-          <View style={styles.healthTrack}>
-            <View style={[styles.healthFill, { width: `${Math.min(budgetSpentPct, 100)}%` as any, backgroundColor: budgetColor }]} />
-          </View>
+          {hasBudgets && (
+            <View style={styles.healthTrack}>
+              <View style={[styles.healthFill, { width: `${Math.min(budgetSpentPct, 100)}%` as any, backgroundColor: budgetColor }]} />
+            </View>
+          )}
           <Text style={[styles.budgetHealthMsg, { color: budgetColor }]}>
-            {budgetHealthOk
+            {!hasBudgets
+              ? 'Set up a budget to start tracking your spending health.'
+              : budgetHealthOk
               ? '✅ You\'re doing well — all budgets are on track this month!'
               : `⚠️ ${overBudgetCount} budget${overBudgetCount > 1 ? 's' : ''} exceeded — review your spending to get back on track.`}
           </Text>
@@ -316,7 +328,7 @@ export function DashboardScreen() {
 
         {/* ── Budget Overview ── */}
         {budgetStatuses.length > 0 && (
-          <Section title="Budget Overview" onViewAll={() => {}}>
+          <Section title="Budget Overview" onViewAll={() => nav.navigate('Budget')}>
             {atRiskBudgets.length > 0 ? (
               atRiskBudgets.map(b => (
                 <Card key={b.id} style={styles.budgetItem}>
@@ -357,7 +369,7 @@ export function DashboardScreen() {
         </TouchableOpacity>
 
         {/* ── Recent Transactions ── */}
-        <Section title="Recent" onViewAll={() => {}}>
+        <Section title="Recent" onViewAll={() => nav.navigate('Expenses')}>
           {recentExpenses.length > 0 ? (
             recentExpenses.map(e => (
               <View key={e.id} style={styles.txRow}>
