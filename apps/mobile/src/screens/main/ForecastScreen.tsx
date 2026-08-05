@@ -20,7 +20,7 @@ export function ForecastScreen() {
   const { profile }    = useAuthStore();
   const { expenses }   = useExpenseStore();
   const { budgets }    = useBudgetStore();
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
 
   const [forecast, setForecast] = useState<ForecastResult | null>(null);
 

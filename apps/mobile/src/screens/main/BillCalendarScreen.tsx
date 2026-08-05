@@ -37,7 +37,7 @@ export function BillCalendarScreen() {
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuthStore();
   const { debts, load } = useDebtStore();
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
 
   useEffect(() => {
     if (user) load(user.id);

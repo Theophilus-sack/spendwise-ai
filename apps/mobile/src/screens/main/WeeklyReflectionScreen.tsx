@@ -29,7 +29,7 @@ export function WeeklyReflectionScreen() {
   const nav = useNavigation<AppStackNavProp>();
   const user = useAuthStore(s => s.user);
   const profile = useAuthStore(s => s.profile);
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
 
   const expenses = useExpenseStore(s => s.expenses);
   const getBudgetStatuses = useExpenseStore(s => s.getBudgetStatuses);

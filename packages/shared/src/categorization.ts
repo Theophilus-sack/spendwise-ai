@@ -37,17 +37,39 @@ const MERCHANT_MAP: Record<string, ExpenseCategory> = {
   'tuition': 'education', 'books': 'education', 'stationery': 'education',
 };
 
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// Precomputed once at module load, not per call — the merchant map is
+// checked on every categorization, so building a fresh RegExp per entry
+// per call would be wasteful. Word-boundary wrapped for the same reason as
+// KEYWORD_RULES below: several merchant keys are generic English words
+// ('water', 'bus', 'bar', 'game'), not just brand names, and were
+// previously matched via a bare `input.includes(merchant)` — "watermelon"
+// matched 'water', "barber" matched 'bar', etc.
+const MERCHANT_RULES: Array<[RegExp, ExpenseCategory]> = Object.entries(MERCHANT_MAP).map(
+  ([merchant, category]) => [new RegExp(`\\b${escapeRegExp(merchant)}\\b`, 'i'), category],
+);
+
+// Every alternative is wrapped in \b...\b — bare substrings previously
+// misclassified real words that merely contain a keyword: "eat" matched
+// inside "treat", "bus" inside "business", "bar" inside "barber", "rent"
+// inside "current"/"parent", "water" inside "watermelon", "fund" inside
+// "refund", "fun" inside "fundamentals". Word boundaries fix all of these
+// while still matching the intended standalone word (multi-word phrases
+// like "chop bar" still match correctly — \b anchors on the outer edges).
 const KEYWORD_RULES: Array<[RegExp, ExpenseCategory]> = [
-  [/pharmacy|chemist|clinic|hospital|medical|health/i, 'health'],
-  [/school|university|tuition|fees|college|lecture/i, 'education'],
-  [/rent|landlord|apartment|housing/i, 'rent'],
-  [/restaurant|food|chop bar|canteen|lunch|dinner|breakfast|snack|eat/i, 'food'],
-  [/grocery|supermarket|market|shoprite|melcom/i, 'groceries'],
-  [/electricity|water|internet|wifi|dstv|gotv|netflix|spotify|subscription/i, 'bills'],
-  [/bolt|uber|yango|trotro|bus|taxi|transport|fuel|petrol|ride/i, 'transport'],
-  [/cinema|movie|concert|club|bar|game|entertainment|fun/i, 'entertainment'],
-  [/mall|shop|zara|clothes|fashion|shoes|boutique/i, 'shopping'],
-  [/savings|save|invest|fund/i, 'savings'],
+  [/\b(pharmacy|chemist|clinic|hospital|medical|health)\b/i, 'health'],
+  [/\b(school|university|tuition|fees|college|lecture)\b/i, 'education'],
+  [/\b(rent|landlord|apartment|housing)\b/i, 'rent'],
+  [/\b(restaurant|food|chop bar|canteen|lunch|dinner|breakfast|snack|eat)\b/i, 'food'],
+  [/\b(grocery|supermarket|market|shoprite|melcom)\b/i, 'groceries'],
+  [/\b(electricity|water|internet|wifi|dstv|gotv|netflix|spotify|subscription)\b/i, 'bills'],
+  [/\b(bolt|uber|yango|trotro|bus|taxi|transport|fuel|petrol|ride)\b/i, 'transport'],
+  [/\b(cinema|movie|concert|club|bar|game|entertainment|fun)\b/i, 'entertainment'],
+  [/\b(mall|shop|zara|clothes|fashion|shoes|boutique)\b/i, 'shopping'],
+  [/\b(savings|save|invest|fund)\b/i, 'savings'],
 ];
 
 /**
@@ -61,8 +83,8 @@ export function categorizeLocally(
   const input = `${description} ${merchantName ?? ''}`.toLowerCase().trim();
 
   // Check merchant map first (high confidence)
-  for (const [merchant, category] of Object.entries(MERCHANT_MAP)) {
-    if (input.includes(merchant)) {
+  for (const [pattern, category] of MERCHANT_RULES) {
+    if (pattern.test(input)) {
       return { category, confidence: 0.88, source: 'rule' };
     }
   }

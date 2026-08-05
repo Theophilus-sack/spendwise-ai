@@ -8,11 +8,12 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
+import { useBudgetStore }  from '@/store/budgetStore';
 import { callEdgeFunction } from '@/lib/supabase';
 import { Button, Input } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
-  CATEGORIES, PAYMENT_METHODS, MOBILE_MONEY_TYPES, todayISO, parseExpenseLocally,
+  CATEGORIES, PAYMENT_METHODS, MOBILE_MONEY_TYPES, todayISO, parseExpenseLocally, getCustomCategories,
 } from '@spendwise/shared';
 import type { ExpenseCategory, PaymentMethod, MobileMoneyType } from '@spendwise/shared';
 import type { AddExpenseProps } from '@/navigation/types';
@@ -21,20 +22,37 @@ export function AddExpenseScreen() {
   const nav    = useNavigation();
   const route  = useRoute<AddExpenseProps['route']>();
   const prefill = route.params?.prefill ?? {};
+  const expenseId = route.params?.expenseId;
 
   const { user, profile } = useAuthStore();
-  const { addExpense }    = useExpenseStore();
+  const { expenses, addExpense, updateExpense } = useExpenseStore();
+  const { budgets } = useBudgetStore();
 
-  const [amount,          setAmount]          = useState(prefill.amount?.toString() ?? '');
-  const [description,     setDescription]     = useState(prefill.description ?? '');
-  const [merchantName,    setMerchantName]    = useState(prefill.merchantName ?? '');
-  const [category,        setCategory]        = useState<ExpenseCategory>(prefill.category ?? 'other');
+  // Custom categories typed elsewhere (on this or any other expense, or on a
+  // budget) show up here as real selectable chips instead of always
+  // requiring the "Custom" text field to be retyped from scratch.
+  const customCategoryOptions = getCustomCategories([
+    ...expenses.map(e => e.category),
+    ...budgets.map(b => b.category),
+  ]);
+
+  // Editing an existing expense (tapped from ExpensesScreen) pre-fills from
+  // the real record instead of the lighter `prefill` shape used by
+  // AI-parsed/receipt-scanned quick-adds — those two entry points never
+  // overlap, since expenseId is only ever set from a real, saved expense.
+  const existing = expenseId ? expenses.find(e => e.id === expenseId) : undefined;
+  const isEditing = !!existing;
+
+  const [amount,          setAmount]          = useState(existing?.amount.toString() ?? prefill.amount?.toString() ?? '');
+  const [description,     setDescription]     = useState(existing?.description ?? prefill.description ?? '');
+  const [merchantName,    setMerchantName]    = useState(existing?.merchantName ?? prefill.merchantName ?? '');
+  const [category,        setCategory]        = useState<ExpenseCategory>(existing?.category ?? prefill.category ?? 'other');
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [customCategory,    setCustomCategory]    = useState('');
-  const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod>(prefill.paymentMethod ?? 'mobile_money');
-  const [mobileMoneyType, setMobileMoneyType] = useState<MobileMoneyType | undefined>(prefill.mobileMoneyType);
-  const [date,            setDate]            = useState(prefill.date ?? todayISO());
-  const [notes,           setNotes]           = useState('');
+  const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod>(existing?.paymentMethod ?? prefill.paymentMethod ?? 'mobile_money');
+  const [mobileMoneyType, setMobileMoneyType] = useState<MobileMoneyType | undefined>(existing?.mobileMoneyType ?? prefill.mobileMoneyType);
+  const [date,            setDate]            = useState(existing?.date ?? prefill.date ?? todayISO());
+  const [notes,           setNotes]           = useState(existing?.notes ?? '');
   const [nlpInput,        setNlpInput]        = useState('');
   const [loading,         setLoading]         = useState(false);
   const [mode,            setMode]            = useState<'form' | 'nlp'>('form');
@@ -42,7 +60,11 @@ export function AddExpenseScreen() {
   const [customCategoryError, setCustomCategoryError] = useState<string | null>(null);
   const [formError,           setFormError]           = useState<string | null>(null);
 
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
+
+  useEffect(() => {
+    nav.setOptions({ title: isEditing ? 'Edit Expense' : 'Add Expense' });
+  }, [isEditing]);
 
   const handleNLPParse = async () => {
     if (!nlpInput.trim()) return;
@@ -96,10 +118,19 @@ export function AddExpenseScreen() {
     const effectiveCategory = (useCustomCategory ? customCategory.trim() : category) as ExpenseCategory;
     setLoading(true);
     try {
-      await addExpense(user.id, {
-        amount: amountNum, currency, category: effectiveCategory, paymentMethod,
-        mobileMoneyType, description, merchantName, date, notes,
-      });
+      if (existing) {
+        await updateExpense({
+          ...existing,
+          amount: amountNum, currency, category: effectiveCategory, paymentMethod,
+          mobileMoneyType, description, merchantName, date, notes,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await addExpense(user.id, {
+          amount: amountNum, currency, category: effectiveCategory, paymentMethod,
+          mobileMoneyType, description, merchantName, date, notes,
+        });
+      }
       nav.goBack();
     } catch (err: any) {
       setFormError(err.message ?? 'Could not save expense');
@@ -112,23 +143,26 @@ export function AddExpenseScreen() {
     <SafeAreaView style={styles.safe}>
       <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
 
-        {/* Mode Toggle */}
-        <View style={styles.modeToggle}>
-          <TouchableOpacity
-            style={[styles.modeTab, mode === 'form' && styles.modeTabActive]}
-            onPress={() => setMode('form')}
-          >
-            <Ionicons name="create-outline" size={16} color={mode === 'form' ? Colors.primary : Colors.textSecondary} />
-            <Text style={[styles.modeTabText, mode === 'form' && styles.modeTabTextActive]}>Form</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.modeTab, mode === 'nlp' && styles.modeTabActive]}
-            onPress={() => setMode('nlp')}
-          >
-            <Ionicons name="chatbubble-outline" size={16} color={mode === 'nlp' ? Colors.primary : Colors.textSecondary} />
-            <Text style={[styles.modeTabText, mode === 'nlp' && styles.modeTabTextActive]}>Quick Add</Text>
-          </TouchableOpacity>
-        </View>
+        {/* Mode Toggle — Quick Add (AI parsing) only makes sense when
+            creating a new expense from scratch, not editing an existing one */}
+        {!isEditing && (
+          <View style={styles.modeToggle}>
+            <TouchableOpacity
+              style={[styles.modeTab, mode === 'form' && styles.modeTabActive]}
+              onPress={() => setMode('form')}
+            >
+              <Ionicons name="create-outline" size={16} color={mode === 'form' ? Colors.primary : Colors.textSecondary} />
+              <Text style={[styles.modeTabText, mode === 'form' && styles.modeTabTextActive]}>Form</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeTab, mode === 'nlp' && styles.modeTabActive]}
+              onPress={() => setMode('nlp')}
+            >
+              <Ionicons name="chatbubble-outline" size={16} color={mode === 'nlp' ? Colors.primary : Colors.textSecondary} />
+              <Text style={[styles.modeTabText, mode === 'nlp' && styles.modeTabTextActive]}>Quick Add</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
 
@@ -195,6 +229,18 @@ export function AddExpenseScreen() {
                       <Text style={styles.chipEmoji}>{emoji}</Text>
                       <Text style={[styles.chipText, !useCustomCategory && category === id && styles.chipTextSelected]}>
                         {label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  {customCategoryOptions.map(c => (
+                    <TouchableOpacity
+                      key={c}
+                      style={[styles.chip, !useCustomCategory && category === c && styles.chipSelected]}
+                      onPress={() => { setCategory(c as ExpenseCategory); setUseCustomCategory(false); }}
+                    >
+                      <Text style={styles.chipEmoji}>✨</Text>
+                      <Text style={[styles.chipText, !useCustomCategory && category === c && styles.chipTextSelected]}>
+                        {c}
                       </Text>
                     </TouchableOpacity>
                   ))}
@@ -265,7 +311,7 @@ export function AddExpenseScreen() {
         {/* Save button */}
         <View style={styles.footer}>
           {formError && <Text style={styles.formError}>{formError}</Text>}
-          <Button label="Save Expense" onPress={handleSave} loading={loading} fullWidth size="lg" />
+          <Button label={isEditing ? 'Save Changes' : 'Save Expense'} onPress={handleSave} loading={loading} fullWidth size="lg" />
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>

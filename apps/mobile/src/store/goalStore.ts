@@ -4,6 +4,7 @@ import { dbGetGoals, dbUpsertGoal, dbDeleteGoal, dbGetQueuedIdsByOperation } fro
 import { writeAndSync } from '@/lib/syncEngine';
 import { mergeSyncedRows } from '@spendwise/shared';
 import type { Goal } from '@spendwise/shared';
+import { goalRowSchema, parseRows } from '@/lib/schemas';
 
 interface GoalState {
   goals:   Goal[];
@@ -29,7 +30,7 @@ export const useGoalStore = create<GoalState>((set, get) => ({
       const { data } = await supabase.from('goals').select('*').eq('user_id', userId);
       if (!data) return;
 
-      const mapped = data.map(remoteToGoal);
+      const mapped = parseRows(goalRowSchema, data, 'goals');
       const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('goals');
 
       for (const g of mapped) {
@@ -74,20 +75,6 @@ export const useGoalStore = create<GoalState>((set, get) => ({
 
   reset: () => set({ goals: [], loading: false }),
 }));
-
-function remoteToGoal(r: Record<string, unknown>): Goal {
-  return {
-    id: String(r.id), userId: String(r.user_id),
-    title: String(r.title), emoji: String(r.emoji ?? '🎯'),
-    targetAmount: Number(r.target_amount), currentAmount: Number(r.current_amount ?? 0),
-    deadline: r.deadline ? String(r.deadline) : undefined,
-    priority: Number(r.priority ?? 1),
-    aiWeeklyTarget: r.ai_weekly_target ? Number(r.ai_weekly_target) : undefined,
-    roundupEnabled: Boolean(r.roundup_enabled),
-    status: String(r.status ?? 'active') as Goal['status'],
-    createdAt: String(r.created_at), updatedAt: String(r.updated_at),
-  };
-}
 
 function goalToRemote(g: Goal): Record<string, unknown> {
   return {

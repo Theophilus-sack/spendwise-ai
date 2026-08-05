@@ -4,6 +4,7 @@ import { dbGetIncome, dbUpsertIncome, dbDeleteIncome, dbGetQueuedIdsByOperation 
 import { writeAndSync } from '@/lib/syncEngine';
 import { mergeSyncedRows } from '@spendwise/shared';
 import type { IncomeEntry } from '@spendwise/shared';
+import { incomeRowSchema, parseRows } from '@/lib/schemas';
 
 interface IncomeState {
   entries:  IncomeEntry[];
@@ -32,7 +33,7 @@ export const useIncomeStore = create<IncomeState>((set, get) => ({
         .order('date', { ascending: false });
       if (!data) return;
 
-      const mapped = data.map(remoteToIncome);
+      const mapped = parseRows(incomeRowSchema, data, 'income_entries');
       const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('income_entries');
 
       // Only cache remote rows into local SQLite that aren't currently being
@@ -72,19 +73,6 @@ export const useIncomeStore = create<IncomeState>((set, get) => ({
 
   reset: () => set({ entries: [], loading: false }),
 }));
-
-function remoteToIncome(r: Record<string, unknown>): IncomeEntry {
-  return {
-    id: String(r.id), userId: String(r.user_id),
-    source: String(r.source) as IncomeEntry['source'],
-    sourceName: r.source_name ? String(r.source_name) : undefined,
-    amount: Number(r.amount), currency: String(r.currency ?? 'GHS') as any,
-    date: String(r.date), isRecurring: Boolean(r.is_recurring),
-    interval: r.interval ? String(r.interval) as any : undefined,
-    notes: r.notes ? String(r.notes) : undefined,
-    createdAt: String(r.created_at),
-  };
-}
 
 function incomeToRemote(e: IncomeEntry): Record<string, unknown> {
   return {

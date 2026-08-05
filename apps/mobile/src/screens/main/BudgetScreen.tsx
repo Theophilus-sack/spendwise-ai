@@ -14,7 +14,7 @@ import { useIncomeStore }  from '@/store/incomeStore';
 import { Card, BudgetBar, Button } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
-  CATEGORY_LIST, getCategoryEmoji, getCategoryLabel, formatCurrency, generateUUID,
+  CATEGORY_LIST, getCategoryEmoji, getCategoryLabel, formatCurrency, generateUUID, getCustomCategories,
 } from '@spendwise/shared';
 import type { Budget, BudgetStatus, ExpenseCategory } from '@spendwise/shared';
 import type { AppStackNavProp } from '@/navigation/types';
@@ -23,7 +23,7 @@ export function BudgetScreen() {
   const nav = useNavigation<AppStackNavProp>();
   const insets = useSafeAreaInsets();
   const { user, profile } = useAuthStore();
-  const { getBudgetStatuses } = useExpenseStore();
+  const { expenses, getBudgetStatuses } = useExpenseStore();
   const { budgets, load, upsertBudget, deleteBudget } = useBudgetStore();
   const { load: loadIncome, getTotalThisMonth: getIncomeThisMonth } = useIncomeStore();
 
@@ -40,12 +40,18 @@ export function BudgetScreen() {
   const [customCategoryName, setCustomCategoryName] = useState('');
   const [saving,         setSaving]         = useState(false);
 
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
   const statuses = getBudgetStatuses(budgets);
   const sorted   = [...statuses].sort((a, b) => b.percentage - a.percentage);
 
   const budgetedCategories = new Set(budgets.map(b => b.category));
   const availableCategories = CATEGORY_LIST.filter(c => !budgetedCategories.has(c));
+  // Custom categories already typed on an expense (e.g. "Trustwash") that
+  // don't have a budget yet — same cross-pollination as AddExpenseScreen's
+  // customCategoryOptions, so a category typed on one screen shows up as a
+  // real chip on the other instead of needing to be retyped.
+  const customBudgetCategories = getCustomCategories(expenses.map(e => e.category))
+    .filter(c => !budgetedCategories.has(c as ExpenseCategory));
 
   const totalBudget = budgets.reduce((s, b) => s + b.limitAmount, 0);
   const totalSpent  = statuses.reduce((s, b) => s + b.spent, 0);
@@ -224,7 +230,7 @@ export function BudgetScreen() {
           ) : null
         }
         ListFooterComponent={
-          availableCategories.length > 0 ? (
+          availableCategories.length > 0 || customBudgetCategories.length > 0 ? (
             <TouchableOpacity style={styles.addBudgetBtn} onPress={openAdd}>
               <Ionicons name="add-circle-outline" size={20} color={Colors.primary} />
               <Text style={styles.addBudgetText}>Add new budget category</Text>
@@ -288,6 +294,18 @@ export function BudgetScreen() {
                     <Text style={styles.categoryChipEmoji}>{getCategoryEmoji(c)}</Text>
                     <Text style={[styles.categoryChipLabel, !useCustomCategory && newCategory === c && styles.categoryChipLabelActive]}>
                       {getCategoryLabel(c)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+                {customBudgetCategories.map(c => (
+                  <TouchableOpacity
+                    key={c}
+                    style={[styles.categoryChip, !useCustomCategory && newCategory === c && styles.categoryChipActive]}
+                    onPress={() => { setNewCategory(c as ExpenseCategory); setUseCustomCategory(false); }}
+                  >
+                    <Text style={styles.categoryChipEmoji}>✨</Text>
+                    <Text style={[styles.categoryChipLabel, !useCustomCategory && newCategory === c && styles.categoryChipLabelActive]}>
+                      {c}
                     </Text>
                   </TouchableOpacity>
                 ))}

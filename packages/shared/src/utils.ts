@@ -146,6 +146,19 @@ export function getCategoryColor(category: ExpenseCategory): string {
   return CATEGORIES[category]?.color ?? '#BDC3C7';
 }
 
+/** Distinct category strings actually in use that aren't one of the fixed
+ *  built-in ones — surfaces a custom category (e.g. "Trustwash") a user
+ *  already typed on a budget or expense elsewhere, so category pickers can
+ *  offer it as a chip instead of always requiring it to be retyped. */
+export function getCustomCategories(categories: Array<string | undefined | null>): string[] {
+  const known = new Set<string>(Object.keys(CATEGORIES));
+  const seen = new Set<string>();
+  for (const c of categories) {
+    if (c && !known.has(c)) seen.add(c);
+  }
+  return [...seen].sort((a, b) => a.localeCompare(b));
+}
+
 // ─── Numbers ──────────────────────────────────────────────────────────────────
 
 export function pct(value: number, total: number): number {

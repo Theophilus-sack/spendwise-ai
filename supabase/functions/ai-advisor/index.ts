@@ -4,11 +4,13 @@ import Anthropic from 'https://esm.sh/@anthropic-ai/sdk@0.27.0';
 import { authenticate, AuthError } from '../_shared/auth.ts';
 import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
 import { requireString, optionalString, ValidationError } from '../_shared/validate.ts';
+import { CORS_HEADERS, json } from '../_shared/http.ts';
+import { CLAUDE_MODEL } from '../_shared/anthropic.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
   try {
     const { userId } = await authenticate(req); // always a live user for this endpoint
@@ -44,7 +46,7 @@ serve(async (req) => {
 
     // ── Call Claude ──────────────────────────────────────────────────────────
     const response = await anthropic.messages.create({
-      model:      'claude-haiku-4-5-20251001',
+      model:      CLAUDE_MODEL,
       max_tokens: 600,
       system:     buildSystemPrompt(ctx),
       messages:   [...history, { role: 'user', content: message }],
@@ -172,17 +174,3 @@ function extractActions(reply: string): any[] {
   }
   return actions;
 }
-
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
-const corsHeaders = () => ({
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-  'Access-Control-Allow-Methods': 'POST, OPTIONS',
-});
-
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), {
-    status,
-    headers: { 'Content-Type': 'application/json', ...corsHeaders() },
-  });

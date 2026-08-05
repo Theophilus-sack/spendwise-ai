@@ -5,12 +5,14 @@ import { authenticate, AuthError } from '../_shared/auth.ts';
 import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
 import { requireString, ValidationError } from '../_shared/validate.ts';
 import { computeFDS, saveFDS } from '../_shared/fds.ts';
+import { CORS_HEADERS, json } from '../_shared/http.ts';
+import { CLAUDE_MODEL } from '../_shared/anthropic.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
   try {
     const auth = await authenticate(req);
@@ -31,7 +33,7 @@ serve(async (req) => {
 
     // AI commentary
     const commentaryRes = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: CLAUDE_MODEL,
       max_tokens: 80,
       messages: [{
         role: 'user',
@@ -56,10 +58,3 @@ Be specific and motivating, not generic.`,
     return json({ error: err.message }, 500);
   }
 });
-
-const corsHeaders = () => ({
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-});
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });

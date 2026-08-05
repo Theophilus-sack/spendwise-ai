@@ -44,7 +44,7 @@ function getRangeBounds(preset: RangePreset): { start: string | null; end: strin
 export function ExportScreen() {
   const user    = useAuthStore(s => s.user);
   const profile = useAuthStore(s => s.profile);
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
 
   const expenses     = useExpenseStore(s => s.expenses);
   const loadExpenses = useExpenseStore(s => s.load);

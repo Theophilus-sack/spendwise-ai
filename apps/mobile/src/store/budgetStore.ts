@@ -4,6 +4,7 @@ import { dbGetBudgets, dbUpsertBudget, dbDeleteBudget, dbGetQueuedIdsByOperation
 import { writeAndSync } from '@/lib/syncEngine';
 import { mergeSyncedRows } from '@spendwise/shared';
 import type { Budget } from '@spendwise/shared';
+import { budgetRowSchema, parseRows } from '@/lib/schemas';
 
 interface BudgetState {
   budgets: Budget[];
@@ -27,7 +28,7 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
       const { data } = await supabase.from('budgets').select('*').eq('user_id', userId);
       if (!data) return;
 
-      const mapped = data.map(remoteToBudget);
+      const mapped = parseRows(budgetRowSchema, data, 'budgets');
       const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('budgets');
 
       for (const b of mapped) {
@@ -62,17 +63,6 @@ export const useBudgetStore = create<BudgetState>((set, get) => ({
 
   reset: () => set({ budgets: [], loading: false }),
 }));
-
-function remoteToBudget(r: Record<string, unknown>): Budget {
-  return {
-    id: String(r.id), userId: String(r.user_id),
-    category: r.category as any, description: r.description ? String(r.description) : undefined,
-    limitAmount: Number(r.limit_amount),
-    period: (r.period as any) ?? 'monthly', rollover: Boolean(r.rollover),
-    aiSuggested: Boolean(r.ai_suggested),
-    createdAt: String(r.created_at), updatedAt: String(r.updated_at),
-  };
-}
 
 function budgetToRemote(b: Budget): Record<string, unknown> {
   return {

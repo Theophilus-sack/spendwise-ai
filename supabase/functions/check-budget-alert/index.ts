@@ -4,11 +4,12 @@ import { authenticate, AuthError } from '../_shared/auth.ts';
 import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
 import { requireString, ValidationError } from '../_shared/validate.ts';
 import { sendPush } from '../_shared/push.ts';
+import { CORS_HEADERS, json } from '../_shared/http.ts';
 
 const NEAR_THRESHOLD = 0.9;
 
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
   try {
     const { userId } = await authenticate(req); // always the caller's own budgets
@@ -74,10 +75,3 @@ serve(async (req) => {
     return json({ error: err.message }, 500);
   }
 });
-
-const corsHeaders = () => ({
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-});
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });

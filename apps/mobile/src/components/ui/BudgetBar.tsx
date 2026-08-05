@@ -1,12 +1,14 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import Animated, { useSharedValue, useAnimatedStyle, withTiming } from 'react-native-reanimated';
 import { Colors, Typography, Spacing, Radius } from '@/theme';
 import { formatCurrency, pct } from '@spendwise/shared';
+import type { Currency } from '@spendwise/shared';
 
 interface BudgetBarProps {
   spent: number;
   limit: number;
-  currency?: string;
+  currency?: Currency;
   showAmounts?: boolean;
   height?: number;
 }
@@ -20,27 +22,30 @@ export function BudgetBar({
 
   const barColor = isOver ? Colors.danger : isNear ? Colors.warning : Colors.primary;
 
-  const widthAnim = useRef(new Animated.Value(0)).current;
+  // Reanimated, not the legacy Animated API — width isn't a transform/opacity
+  // property, so the old API could only drive it on the JS thread
+  // (useNativeDriver: false). Reanimated runs this on the UI thread instead.
+  const widthPct = useSharedValue(0);
 
   useEffect(() => {
-    Animated.timing(widthAnim, {
-      toValue: percentage,
-      duration: 800,
-      useNativeDriver: false,
-    }).start();
+    widthPct.value = withTiming(percentage, { duration: 800 });
   }, [percentage]);
+
+  const fillStyle = useAnimatedStyle(() => ({
+    width: `${widthPct.value}%`,
+  }));
 
   return (
     <View style={styles.container}>
       {showAmounts && (
         <View style={styles.amounts}>
           <Text style={styles.spent}>
-            {formatCurrency(spent, currency as any)} spent
+            {formatCurrency(spent, currency)} spent
           </Text>
           <Text style={[styles.remaining, isOver && styles.over]}>
             {isOver
-              ? `${formatCurrency(spent - limit, currency as any)} over`
-              : `${formatCurrency(limit - spent, currency as any)} left`}
+              ? `${formatCurrency(spent - limit, currency)} over`
+              : `${formatCurrency(limit - spent, currency)} left`}
           </Text>
         </View>
       )}
@@ -49,7 +54,7 @@ export function BudgetBar({
           style={[
             styles.fill,
             { height, backgroundColor: barColor },
-            { width: widthAnim.interpolate({ inputRange: [0, 100], outputRange: ['0%', '100%'] }) },
+            fillStyle,
           ]}
         />
       </View>

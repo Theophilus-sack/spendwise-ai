@@ -4,6 +4,7 @@ import { supabase } from '@/lib/supabase';
 import { dbClearAll } from '@/lib/database';
 import { resetAllUserStores } from './resetStores';
 import type { UserProfile } from '@spendwise/shared';
+import { profileRowSchema, parseRow } from '@/lib/schemas';
 
 interface AuthState {
   session:  Session | null;
@@ -74,26 +75,11 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       .eq('user_id', user.id)
       .single();
     if (data) {
-      set({
-        profile: {
-          id:                    data.id,
-          userId:                data.user_id,
-          fullName:              data.full_name,
-          phoneNumber:           data.phone_number,
-          currency:              data.currency ?? 'GHS',
-          monthlyIncome:         data.monthly_income ?? 0,
-          incomeSources:         data.income_sources ?? [],
-          spendingPersonality:   data.spending_personality,
-          financialGoals:        data.onboarding_goals ?? [],
-          preferredCategories:   data.preferred_categories ?? [],
-          preferredPaymentMethods: data.preferred_payment_methods ?? [],
-          savingsTargetPct:      data.savings_target_pct ?? 20,
-          disciplineStyle:       data.discipline_style ?? 'flexible',
-          onboardingCompleted:   data.onboarding_completed ?? false,
-          createdAt:             data.created_at,
-          updatedAt:             data.updated_at,
-        },
-      });
+      // A malformed profile row leaves `profile` unset rather than showing a
+      // fabricated one — the rest of the app (currency, onboarding gating,
+      // budget generation) all trust this shape too much to silently guess.
+      const profile = parseRow(profileRowSchema, data, 'profile');
+      if (profile) set({ profile });
     }
   },
 }));

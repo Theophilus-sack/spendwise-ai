@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
+import { notificationRowSchema, parseRows } from '@/lib/schemas';
 
 export interface NotificationItem {
   id: string;
@@ -33,7 +34,7 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
         .eq('user_id', userId)
         .order('sent_at', { ascending: false })
         .limit(100);
-      if (data) set({ items: data.map(remoteToItem) });
+      if (data) set({ items: parseRows(notificationRowSchema, data, 'notification_log') });
     } finally {
       set({ loading: false });
     }
@@ -47,11 +48,3 @@ export const useNotificationStore = create<NotificationState>((set, get) => ({
 
   reset: () => set({ items: [], loading: false }),
 }));
-
-function remoteToItem(r: Record<string, unknown>): NotificationItem {
-  return {
-    id: String(r.id), type: String(r.type), title: String(r.title), body: String(r.body),
-    data: (r.data as Record<string, unknown>) ?? undefined,
-    sentAt: String(r.sent_at), readAt: r.read_at ? String(r.read_at) : undefined,
-  };
-}

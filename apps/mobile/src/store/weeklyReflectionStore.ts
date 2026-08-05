@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { supabase, callEdgeFunction } from '@/lib/supabase';
 import { startOfWeekISO } from '@spendwise/shared';
+import { weeklyReflectionRowSchema, parseRows } from '@/lib/schemas';
 
 export type FollowThrough = 'yes' | 'partially' | 'no';
 
@@ -60,7 +61,7 @@ export const useWeeklyReflectionStore = create<WeeklyReflectionState>((set, get)
         .order('week_start', { ascending: false })
         .limit(12);
 
-      const reflections = (data ?? []).map(remoteToReflection);
+      const reflections = parseRows(weeklyReflectionRowSchema, data ?? [], 'weekly_reflections');
       const thisWeek = startOfWeekISO();
       const lastWeek = shiftDate(thisWeek, -7);
 
@@ -90,20 +91,6 @@ export const useWeeklyReflectionStore = create<WeeklyReflectionState>((set, get)
 
   reset: () => set({ current: null, previous: null, streak: 0, loading: false, submitting: false }),
 }));
-
-function remoteToReflection(r: Record<string, unknown>): WeeklyReflection {
-  return {
-    id: String(r.id),
-    weekStart: String(r.week_start),
-    exceededCategory: r.exceeded_category ? String(r.exceeded_category) : null,
-    adjustNextWeek: Boolean(r.adjust_next_week),
-    smallChange: String(r.small_change ?? ''),
-    moodRating: Number(r.mood_rating ?? 3),
-    aiResponse: r.ai_response ? String(r.ai_response) : null,
-    followThrough: (r.follow_through as FollowThrough) ?? null,
-    createdAt: String(r.created_at),
-  };
-}
 
 /** Consecutive weekly reflections, counting back from the most recent one —
  *  which must be this week's or last week's, otherwise the streak is broken

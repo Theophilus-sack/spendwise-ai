@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { supabase } from '@/lib/supabase';
 import { dbInsertExpense, dbGetExpenses, dbDeleteExpense, dbGetQueuedIdsByOperation } from '@/lib/database';
 import { writeAndSync } from '@/lib/syncEngine';
+import { expenseRowSchema, parseRows } from '@/lib/schemas';
 import {
   todayISO, startOfMonthISO, groupBy, sumBy,
   categorizeLocally, LOW_CONFIDENCE_THRESHOLD, generateUUID, mergeSyncedRows,
@@ -15,6 +16,7 @@ interface ExpenseState {
 
   load:          (userId: string) => Promise<void>;
   addExpense:    (userId: string, input: CreateExpenseInput) => Promise<Expense>;
+  updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   reset:         () => void;
 
@@ -35,17 +37,22 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
       const local = await dbGetExpenses(userId);
       set({ expenses: local });
 
+      // Same tiebreaker as dbGetExpenses' local query — without it, same-day
+      // expenses come back in whatever order Postgres feels like rather than
+      // the order they were actually added, so newly-added ones don't
+      // reliably land at the top once the remote fetch overrides local order.
       const { data, error } = await supabase
         .from('expenses')
         .select('*')
         .eq('user_id', userId)
         .order('date', { ascending: false })
+        .order('created_at', { ascending: false })
         .limit(500);
 
       // A failed fetch must not wipe out what's already on screen.
       if (error) return;
 
-      const remote = (data ?? []).map(remoteToExpense);
+      const remote = parseRows(expenseRowSchema, data ?? [], 'expenses');
       const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('expenses');
 
       // Only cache remote rows into local SQLite that aren't currently being
@@ -136,6 +143,12 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     return expense;
   },
 
+  updateExpense: async (expense) => {
+    await dbInsertExpense(expense, false);
+    set(s => ({ expenses: s.expenses.map(e => e.id === expense.id ? expense : e) }));
+    await writeAndSync('expenses', expense.id, 'upsert', expenseToRemote(expense));
+  },
+
   deleteExpense: async (id) => {
     await dbDeleteExpense(id);
     set(s => ({ expenses: s.expenses.filter(e => e.id !== id) }));
@@ -178,24 +191,7 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
   },
 }));
 
-// ─── Remote ↔ Local mappers ───────────────────────────────────────────────────
-
-function remoteToExpense(r: Record<string, unknown>): Expense {
-  return {
-    id: String(r.id), userId: String(r.user_id),
-    amount: Number(r.amount), currency: (r.currency as any) ?? 'GHS',
-    category: r.category as any, merchantName: r.merchant_name as any,
-    paymentMethod: r.payment_method as any, mobileMoneyType: r.mobile_money_type as any,
-    description: r.description as any, notes: r.notes as any,
-    date: String(r.date), timeOfDay: r.time_of_day as any,
-    isRecurring: Boolean(r.is_recurring), isSplit: Boolean(r.is_split),
-    roundupAmount: Number(r.roundup_amount ?? 0),
-    aiCategorized: Boolean(r.ai_categorized),
-    aiConfidence: r.ai_confidence ? Number(r.ai_confidence) : undefined,
-    receiptImageUrl: r.receipt_image_url as any,
-    createdAt: String(r.created_at), updatedAt: String(r.updated_at),
-  };
-}
+// ─── Local → Remote mapper ─────────────────────────────────────────────────────
 
 function expenseToRemote(e: Expense): Record<string, unknown> {
   return {

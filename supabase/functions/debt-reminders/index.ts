@@ -1,13 +1,14 @@
 import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { sendPush } from '../_shared/push.ts';
+import { CORS_HEADERS, json } from '../_shared/http.ts';
 
 const REMINDER_WINDOW_DAYS = 3;
 const DEDUPE_WINDOW_DAYS   = 5;
 
 // Cron-only, same trust model as weekly-digest — a shared secret, not a user JWT.
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
   const cronSecret = req.headers.get('x-cron-secret');
   if (!cronSecret || cronSecret !== Deno.env.get('CRON_SECRET')) {
@@ -77,10 +78,3 @@ function daysUntilDue(dueDayOfMonth: number, today: Date): number {
   const dueNextMonth = Math.min(dueDayOfMonth, daysInNextMonth);
   return (daysInThisMonth - todayDay) + dueNextMonth;
 }
-
-const corsHeaders = () => ({
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
-});
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });

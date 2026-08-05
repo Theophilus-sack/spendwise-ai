@@ -4,6 +4,7 @@ import { dbGetDebts, dbUpsertDebt, dbDeleteDebt, dbInsertDebtPayment, dbGetQueue
 import { writeAndSync } from '@/lib/syncEngine';
 import { generateUUID, mergeSyncedRows } from '@spendwise/shared';
 import type { Debt, DebtPayment } from '@spendwise/shared';
+import { debtRowSchema, parseRows } from '@/lib/schemas';
 
 interface DebtState {
   debts:   Debt[];
@@ -30,7 +31,7 @@ export const useDebtStore = create<DebtState>((set, get) => ({
       const { data } = await supabase.from('debts').select('*').eq('user_id', userId);
       if (!data) return;
 
-      const mapped = data.map(remoteToDebt);
+      const mapped = parseRows(debtRowSchema, data, 'debts');
       const { upsertIds, deleteIds } = await dbGetQueuedIdsByOperation('debts');
 
       for (const d of mapped) {
@@ -89,23 +90,6 @@ export const useDebtStore = create<DebtState>((set, get) => ({
 
   reset: () => set({ debts: [], loading: false }),
 }));
-
-function remoteToDebt(r: Record<string, unknown>): Debt {
-  return {
-    id: String(r.id), userId: String(r.user_id),
-    label: String(r.label), debtType: r.debt_type as any,
-    principalAmount: Number(r.principal_amount), currentBalance: Number(r.current_balance),
-    interestRatePct: Number(r.interest_rate_pct ?? 0),
-    minPayment: r.min_payment != null ? Number(r.min_payment) : undefined,
-    dueDayOfMonth: r.due_day_of_month != null ? Number(r.due_day_of_month) : undefined,
-    lenderName: r.lender_name ? String(r.lender_name) : undefined,
-    startDate: r.start_date ? String(r.start_date) : undefined,
-    endDate: r.end_date ? String(r.end_date) : undefined,
-    status: r.status as any,
-    notes: r.notes ? String(r.notes) : undefined,
-    createdAt: String(r.created_at), updatedAt: String(r.updated_at),
-  };
-}
 
 function debtToRemote(d: Debt): Record<string, unknown> {
   return {

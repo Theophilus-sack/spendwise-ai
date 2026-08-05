@@ -26,7 +26,7 @@ export function WhatIfScreen() {
   const { getTotalThisMonth, getSpendingByCategory } = useExpenseStore();
   const { budgets, load: loadBudgets, upsertBudget } = useBudgetStore();
 
-  const currency    = (profile?.currency ?? 'GHS') as any;
+  const currency    = profile?.currency ?? 'GHS';
   const totalIncome = profile?.monthlyIncome ?? 0;
   const totalSpent  = getTotalThisMonth();
   const byCategory  = getSpendingByCategory();

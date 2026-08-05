@@ -2,12 +2,13 @@ import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
 import { computeFDS, saveFDS, type FDSComputation } from '../_shared/fds.ts';
 import { sendPush } from '../_shared/push.ts';
+import { CORS_HEADERS, json } from '../_shared/http.ts';
 
 // This function is only ever meant to be called by the weekly pg_cron job,
 // never by a real user session — a shared secret (not a user JWT) gates it,
 // so verify_jwt is off for this function in config.toml.
 serve(async (req) => {
-  if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders() });
+  if (req.method === 'OPTIONS') return new Response('ok', { headers: CORS_HEADERS });
 
   const cronSecret = req.headers.get('x-cron-secret');
   if (!cronSecret || cronSecret !== Deno.env.get('CRON_SECRET')) {
@@ -61,10 +62,3 @@ function mostRecentCompletedWeekStart(): string {
   now.setDate(now.getDate() - now.getDay() - 7);
   return now.toISOString().split('T')[0];
 }
-
-const corsHeaders = () => ({
-  'Access-Control-Allow-Origin':  '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-cron-secret',
-});
-const json = (data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: { 'Content-Type': 'application/json', ...corsHeaders() } });

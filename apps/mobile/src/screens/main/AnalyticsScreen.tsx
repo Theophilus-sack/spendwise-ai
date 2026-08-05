@@ -184,7 +184,7 @@ export function AnalyticsScreen() {
     );
     const peaks = findPeakRiskWindows(hourlyGrid, 1);
     const text = peaks.length
-      ? `You tend to spend most on ${DAY_NAMES[peaks[0].dayOfWeek]}s around ${formatHour(peaks[0].hourOfDay)} — averaging ${formatCurrency(peaks[0].avgAmount, currency as any)} per transaction.`
+      ? `You tend to spend most on ${DAY_NAMES[peaks[0].dayOfWeek]}s around ${formatHour(peaks[0].hourOfDay)} — averaging ${formatCurrency(peaks[0].avgAmount, currency)} per transaction.`
       : null;
     return { bucketedHeatmap: bucketed, peakWindowText: text };
   }, [expenses, timedExpenseCount, currency]);
@@ -240,16 +240,16 @@ export function AnalyticsScreen() {
           <View style={styles.incomeRow}>
             <View style={styles.incomeCol}>
               <Text style={styles.incomeLabel}>Income</Text>
-              <Text style={[styles.incomeValue, { color: Colors.success }]}>{formatCurrency(periodIncome, currency as any)}</Text>
+              <Text style={[styles.incomeValue, { color: Colors.success }]}>{formatCurrency(periodIncome, currency)}</Text>
             </View>
             <View style={styles.incomeCol}>
               <Text style={styles.incomeLabel}>Spent</Text>
-              <Text style={[styles.incomeValue, { color: Colors.danger }]}>{formatCurrency(periodSpent, currency as any)}</Text>
+              <Text style={[styles.incomeValue, { color: Colors.danger }]}>{formatCurrency(periodSpent, currency)}</Text>
             </View>
             <View style={styles.incomeCol}>
               <Text style={styles.incomeLabel}>Net</Text>
               <Text style={[styles.incomeValue, { color: periodIncome - periodSpent >= 0 ? Colors.text : Colors.danger }]}>
-                {formatCurrency(periodIncome - periodSpent, currency as any)}
+                {formatCurrency(periodIncome - periodSpent, currency)}
               </Text>
             </View>
           </View>
@@ -263,9 +263,9 @@ export function AnalyticsScreen() {
           ) : (
             <>
               <View style={styles.donutRow}>
-                <DonutChart data={categoryData} centerValue={formatCompact(periodSpent, currency as any)} centerLabel="total" />
+                <DonutChart data={categoryData} centerValue={formatCompact(periodSpent, currency)} centerLabel="total" />
               </View>
-              <DonutLegend data={categoryData} formatValue={v => formatCurrency(v, currency as any)} />
+              <DonutLegend data={categoryData} formatValue={v => formatCurrency(v, currency)} />
             </>
           )}
         </Card>
@@ -278,9 +278,9 @@ export function AnalyticsScreen() {
           ) : (
             <>
               <View style={styles.donutRow}>
-                <DonutChart data={paymentMethodData} centerValue={formatCompact(periodSpent, currency as any)} centerLabel="total" />
+                <DonutChart data={paymentMethodData} centerValue={formatCompact(periodSpent, currency)} centerLabel="total" />
               </View>
-              <DonutLegend data={paymentMethodData} formatValue={v => formatCurrency(v, currency as any)} />
+              <DonutLegend data={paymentMethodData} formatValue={v => formatCurrency(v, currency)} />
             </>
           )}
         </Card>
@@ -306,7 +306,7 @@ export function AnalyticsScreen() {
                       {formatDateShort(e.date)}{e.timeOfDay ? ` · ${e.timeOfDay}` : ''} · {PAYMENT_METHODS[e.paymentMethod]?.label ?? e.paymentMethod}
                     </Text>
                   </View>
-                  <Text style={styles.statementAmount}>-{formatCurrency(e.amount, e.currency as any)}</Text>
+                  <Text style={styles.statementAmount}>-{formatCurrency(e.amount, e.currency)}</Text>
                 </View>
               ))}
             </View>

@@ -31,15 +31,11 @@ export type AppTabParamList = {
 
 export type AppStackParamList = {
   Tabs:              undefined;
-  AddExpense:        { prefill?: Partial<import('@spendwise/shared').CreateExpenseInput> };
-  ExpenseDetail:     { expenseId: string };
+  AddExpense:        { prefill?: Partial<import('@spendwise/shared').CreateExpenseInput>; expenseId?: string };
   ReceiptScanner:    undefined;
   AIAdvisor:         { initialMessage?: string };
   Goals:             undefined;
-  GoalDetail:        { goalId: string };
-  AddGoal:           undefined;
   Income:            undefined;
-  AddIncome:         undefined;
   Debts:             undefined;
   Analytics:         undefined;
   Forecast:          undefined;
@@ -72,4 +68,3 @@ export type LoginScreenProps   = NativeStackScreenProps<AuthStackParamList, 'Log
 export type SignUpScreenProps  = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 export type AddExpenseProps    = NativeStackScreenProps<AppStackParamList, 'AddExpense'>;
 export type AIAdvisorProps     = NativeStackScreenProps<AppStackParamList, 'AIAdvisor'>;
-export type GoalDetailProps    = NativeStackScreenProps<AppStackParamList, 'GoalDetail'>;

@@ -72,7 +72,7 @@ export async function exportExpensesCSV(expenses: Expense[], rangeLabel: string)
   const header = ['Date', 'Category', 'Merchant/Description', 'Amount', 'Currency', 'Payment Method', 'Notes'];
   const rows = expenses.map(e => [
     e.date,
-    getCategoryLabel(e.category as any),
+    getCategoryLabel(e.category),
     e.merchantName ?? e.description ?? '',
     e.amount.toFixed(2),
     e.currency,
@@ -94,10 +94,10 @@ export async function exportExpensesPDF(expenses: Expense[], currency: Currency,
   const rows = expenses.map(e => `
     <tr>
       <td>${formatDate(e.date)}</td>
-      <td>${escapeHtml(getCategoryLabel(e.category as any))}</td>
+      <td>${escapeHtml(getCategoryLabel(e.category))}</td>
       <td>${escapeHtml(e.merchantName ?? e.description ?? '—')}</td>
-      <td>${escapeHtml(PAYMENT_METHODS[e.paymentMethod as PaymentMethod]?.label ?? e.paymentMethod)}</td>
-      <td class="amt">${formatCurrency(e.amount, e.currency as any)}</td>
+      <td>${escapeHtml(PAYMENT_METHODS[e.paymentMethod]?.label ?? e.paymentMethod)}</td>
+      <td class="amt">${formatCurrency(e.amount, e.currency)}</td>
     </tr>`).join('');
 
   const byCategory: ChartSlice[] = Object.entries(groupBy(expenses, 'category')).map(([category, list]) => ({

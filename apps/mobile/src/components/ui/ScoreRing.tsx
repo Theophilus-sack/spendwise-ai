@@ -1,6 +1,7 @@
-import React, { useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, Animated } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
 import Svg, { Circle } from 'react-native-svg';
+import Animated, { useSharedValue, useAnimatedProps, withTiming } from 'react-native-reanimated';
 import { Colors, Typography } from '@/theme';
 import { fdsGradeColor } from '@spendwise/shared';
 import type { FDSResult } from '@spendwise/shared';
@@ -20,20 +21,19 @@ export function ScoreRing({
   const circumference = 2 * Math.PI * radius;
   const color       = fdsGradeColor(grade);
 
-  const progressAnim = useRef(new Animated.Value(0)).current;
+  // strokeDashoffset is an SVG prop, not a transform/opacity style, so the
+  // legacy Animated API could only drive it on the JS thread
+  // (useNativeDriver: false). Reanimated's useAnimatedProps runs this on the
+  // UI thread instead — same trick as BudgetBar's width fill.
+  const progress = useSharedValue(0);
 
   useEffect(() => {
-    Animated.timing(progressAnim, {
-      toValue: score,
-      duration: 1200,
-      useNativeDriver: false,
-    }).start();
+    progress.value = withTiming(score, { duration: 1200 });
   }, [score]);
 
-  const strokeDashoffset = progressAnim.interpolate({
-    inputRange: [0, 100],
-    outputRange: [circumference, 0],
-  });
+  const animatedProps = useAnimatedProps(() => ({
+    strokeDashoffset: circumference - (progress.value / 100) * circumference,
+  }));
 
   return (
     <View style={[styles.container, { width: size, height: size }]}>
@@ -48,7 +48,7 @@ export function ScoreRing({
           cx={size / 2} cy={size / 2} r={radius}
           fill="none" stroke={color} strokeWidth={strokeWidth}
           strokeDasharray={circumference}
-          strokeDashoffset={strokeDashoffset}
+          animatedProps={animatedProps}
           strokeLinecap="round"
           rotation="-90" origin={`${size / 2}, ${size / 2}`}
         />

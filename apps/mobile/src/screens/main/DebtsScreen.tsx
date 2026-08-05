@@ -19,7 +19,7 @@ export function DebtsScreen() {
   const { user, profile } = useAuthStore();
   const { debts, loading, load, addDebt, updateDebt, deleteDebt, recordPayment } = useDebtStore();
 
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
 
   const [showForm,   setShowForm]   = useState(false);
   const [editing,    setEditing]    = useState<Debt | null>(null);

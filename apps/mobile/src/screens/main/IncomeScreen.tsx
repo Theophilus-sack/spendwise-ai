@@ -51,7 +51,7 @@ export function IncomeScreen() {
   const [primaryInput,      setPrimaryInput]      = useState('');
   const [savingPrimary,     setSavingPrimary]     = useState(false);
 
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
 
   const refresh = useCallback(async () => {
     if (user) await Promise.all([load(user.id), loadBudgets(user.id)]);

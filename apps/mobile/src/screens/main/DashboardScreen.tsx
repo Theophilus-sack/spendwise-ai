@@ -52,7 +52,7 @@ export function DashboardScreen() {
 
   useEffect(() => { refresh(); }, []);
 
-  const currency       = (profile?.currency ?? 'GHS') as any;
+  const currency       = profile?.currency ?? 'GHS';
   const monthExpenses  = getThisMonthExpenses();
   const totalSpent     = getTotalThisMonth();
   const baseSalary     = profile?.monthlyIncome ?? 0;
@@ -221,7 +221,7 @@ export function DashboardScreen() {
               <Text style={[styles.healthBarPct, { color: incomeHealthColor }]}>{incomeSpentPct.toFixed(0)}% spent</Text>
             </View>
             <View style={styles.healthTrack}>
-              <View style={[styles.healthFill, { width: `${incomeSpentPct}%` as any, backgroundColor: incomeHealthColor }]} />
+              <View style={[styles.healthFill, { width: `${incomeSpentPct}%`, backgroundColor: incomeHealthColor }]} />
             </View>
             <Text style={[styles.healthLabel, { color: incomeHealthColor }]}>{incomeHealthLabel}</Text>
           </View>
@@ -244,7 +244,7 @@ export function DashboardScreen() {
           </View>
           {hasBudgets && (
             <View style={styles.healthTrack}>
-              <View style={[styles.healthFill, { width: `${Math.min(budgetSpentPct, 100)}%` as any, backgroundColor: budgetColor }]} />
+              <View style={[styles.healthFill, { width: `${Math.min(budgetSpentPct, 100)}%`, backgroundColor: budgetColor }]} />
             </View>
           )}
           <Text style={[styles.budgetHealthMsg, { color: budgetColor }]}>

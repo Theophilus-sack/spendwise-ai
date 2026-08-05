@@ -33,7 +33,7 @@ export function ExpensesScreen() {
   const insets = useSafeAreaInsets();
   const { expenses, deleteExpense } = useExpenseStore();
   const { profile } = useAuthStore();
-  const currency = (profile?.currency ?? "GHS") as any;
+  const currency = profile?.currency ?? "GHS";
 
   const [search, setSearch] = useState("");
   const [filterCat, setFilterCat] = useState<ExpenseCategory | "all">("all");
@@ -136,6 +136,7 @@ export function ExpensesScreen() {
       {/* Category filter */}
       <FlatList
         horizontal
+        style={styles.filterList}
         data={[
           { id: "all", label: "All", emoji: "📋" },
           ...Object.entries(CATEGORIES).map(([id, { label, emoji }]) => ({
@@ -180,11 +181,13 @@ export function ExpensesScreen() {
       <FlatList
         data={filtered}
         keyExtractor={(e) => e.id}
+        style={styles.expenseList}
         contentContainerStyle={styles.list}
         showsVerticalScrollIndicator={false}
         renderItem={({ item: e }) => (
           <TouchableOpacity
             style={styles.expenseRow}
+            onPress={() => nav.navigate("AddExpense", { expenseId: e.id })}
             onLongPress={() => confirmDelete(e)}
             activeOpacity={0.8}
           >
@@ -310,6 +313,11 @@ const styles = StyleSheet.create({
   },
   searchInput: { flex: 1, fontSize: Typography.base, color: Colors.text },
 
+  // flexShrink:0/flexGrow:0 — belt-and-suspenders alongside expenseList's
+  // flex:1 above: this row must never be a candidate for flexbox's
+  // shrink-to-fit distribution, regardless of what else is competing for
+  // vertical space (a tall expense list, the keyboard opening, etc).
+  filterList: { flexShrink: 0, flexGrow: 0 },
   filterRow: {
     paddingHorizontal: Spacing.base,
     paddingTop: Spacing.base,
@@ -340,6 +348,7 @@ const styles = StyleSheet.create({
   filterTextActive: { color: "#fff", fontWeight: Typography.semibold },
 
   totalRow: {
+    flexShrink: 0,
     flexDirection: "row",
     justifyContent: "space-between",
     paddingHorizontal: Spacing.base,
@@ -351,6 +360,13 @@ const styles = StyleSheet.create({
     fontWeight: Typography.bold,
     color: Colors.text,
   },
+  // flex:1 (not just contentContainerStyle) makes this the one bounded,
+  // internally-scrolling region — without it, the list requests unbounded
+  // height as more expenses are added, and once total content exceeds the
+  // screen height, flexbox's default flexShrink:1 proportionally shrinks
+  // every sibling that doesn't opt out, including the category filter row
+  // above it, down toward nothing.
+  expenseList: { flex: 1 },
   list: { padding: Spacing.base, gap: Spacing.sm },
   expenseRow: {
     flexDirection: "row",

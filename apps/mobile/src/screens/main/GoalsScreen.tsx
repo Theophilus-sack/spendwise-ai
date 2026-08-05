@@ -22,6 +22,7 @@ export function GoalsScreen() {
   const [showAddModal,    setShowAddModal]    = useState(false);
   const [showContribModal, setShowContribModal] = useState(false);
   const [selectedGoal,    setSelectedGoal]    = useState<Goal | null>(null);
+  const [editingGoal,     setEditingGoal]     = useState<Goal | null>(null);
   const [title,           setTitle]           = useState('');
   const [targetAmount,    setTargetAmount]    = useState('');
   const [selectedEmoji,   setSelectedEmoji]   = useState('🎯');
@@ -40,7 +41,7 @@ export function GoalsScreen() {
     ).start();
   }, []);
 
-  const currency = (profile?.currency ?? 'GHS') as any;
+  const currency = profile?.currency ?? 'GHS';
 
   const refresh = useCallback(async () => {
     if (user) await load(user.id);
@@ -62,32 +63,70 @@ export function GoalsScreen() {
     ? Math.max(0, Math.ceil((new Date(nearestDeadline.deadline).getTime() - Date.now()) / 86400000))
     : null;
 
-  const handleAddGoal = async () => {
+  const resetGoalForm = () => {
+    setEditingGoal(null);
+    setTitle('');
+    setTargetAmount('');
+    setDeadline('');
+    setSelectedEmoji('🎯');
+  };
+
+  const openAddModal = () => {
+    resetGoalForm();
+    setShowAddModal(true);
+  };
+
+  // Tapping a goal card, or its edit icon, opens the same modal pre-filled —
+  // updateGoal already existed in the store but had no UI calling it for
+  // this purpose (only contributeToGoal used it, to bump currentAmount).
+  const openEditModal = (goal: Goal) => {
+    setEditingGoal(goal);
+    setTitle(goal.title);
+    setTargetAmount(goal.targetAmount.toString());
+    setDeadline(goal.deadline ?? '');
+    setSelectedEmoji(goal.emoji);
+    setShowAddModal(true);
+  };
+
+  const closeAddModal = () => {
+    setShowAddModal(false);
+    resetGoalForm();
+  };
+
+  const handleSaveGoal = async () => {
     const amt = parseFloat(targetAmount);
     if (!title.trim() || !amt || amt <= 0) { Alert.alert('Please fill in title and a valid target amount'); return; }
     setSaving(true);
     try {
-      const now = new Date().toISOString();
-      const goal: Goal = {
-        id:            generateUUID(),
-        userId:        user!.id,
-        title:         title.trim(),
-        emoji:         selectedEmoji,
-        targetAmount:  amt,
-        currentAmount: 0,
-        deadline:      deadline || undefined,
-        priority:      activeGoals.length + 1,
-        roundupEnabled: false,
-        status:        'active',
-        createdAt:     now,
-        updatedAt:     now,
-      };
-      await addGoal(goal);
+      if (editingGoal) {
+        await updateGoal({
+          ...editingGoal,
+          title:        title.trim(),
+          emoji:        selectedEmoji,
+          targetAmount: amt,
+          deadline:     deadline || undefined,
+          updatedAt:    new Date().toISOString(),
+        });
+      } else {
+        const now = new Date().toISOString();
+        const goal: Goal = {
+          id:            generateUUID(),
+          userId:        user!.id,
+          title:         title.trim(),
+          emoji:         selectedEmoji,
+          targetAmount:  amt,
+          currentAmount: 0,
+          deadline:      deadline || undefined,
+          priority:      activeGoals.length + 1,
+          roundupEnabled: false,
+          status:        'active',
+          createdAt:     now,
+          updatedAt:     now,
+        };
+        await addGoal(goal);
+      }
       setShowAddModal(false);
-      setTitle('');
-      setTargetAmount('');
-      setDeadline('');
-      setSelectedEmoji('🎯');
+      resetGoalForm();
     } catch (err) {
       Alert.alert('Could not save', err instanceof Error ? err.message : 'Please try again.');
     } finally {
@@ -150,7 +189,7 @@ export function GoalsScreen() {
             <Text style={styles.pageTitle}>Savings Goals</Text>
             <Text style={styles.pageSub}>{activeGoals.length} active goal{activeGoals.length !== 1 ? 's' : ''}</Text>
           </View>
-          <TouchableOpacity style={styles.addBtn} onPress={() => setShowAddModal(true)}>
+          <TouchableOpacity style={styles.addBtn} onPress={openAddModal}>
             <Ionicons name="add" size={20} color="#fff" />
             <Text style={styles.addBtnText}>New Goal</Text>
           </TouchableOpacity>
@@ -186,7 +225,7 @@ export function GoalsScreen() {
               </View>
               <TouchableOpacity
                 style={styles.reminderBtn}
-                onPress={() => nearestDeadline ? openContrib(nearestDeadline) : setShowAddModal(true)}
+                onPress={() => nearestDeadline ? openContrib(nearestDeadline) : openAddModal()}
               >
                 <Text style={styles.reminderBtnText}>Save now</Text>
               </TouchableOpacity>
@@ -200,7 +239,7 @@ export function GoalsScreen() {
             <Text style={styles.emptyEmoji}>🎯</Text>
             <Text style={styles.emptyTitle}>No active goals</Text>
             <Text style={styles.emptySub}>Set a savings goal — a new phone, a trip, an emergency fund — and track your progress here.</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowAddModal(true)}>
+            <TouchableOpacity style={styles.emptyBtn} onPress={openAddModal}>
               <Text style={styles.emptyBtnText}>+ Create first goal</Text>
             </TouchableOpacity>
           </Card>
@@ -216,44 +255,49 @@ export function GoalsScreen() {
               const remaining = goal.targetAmount - goal.currentAmount;
 
               return (
-                <Card key={goal.id} style={styles.goalCard}>
-                  <View style={styles.goalHeader}>
-                    <Text style={styles.goalEmoji}>{goal.emoji}</Text>
-                    <View style={styles.goalInfo}>
-                      <Text style={styles.goalTitle}>{goal.title}</Text>
-                      {daysTo !== null && (
-                        <Text style={[styles.goalDeadline, { color: daysTo < 7 ? Colors.danger : Colors.textSecondary }]}>
-                          {daysTo === 0 ? 'Due today!' : `${daysTo} days left`}
-                        </Text>
-                      )}
+                <TouchableOpacity key={goal.id} onPress={() => openEditModal(goal)} activeOpacity={0.85}>
+                  <Card style={styles.goalCard}>
+                    <View style={styles.goalHeader}>
+                      <Text style={styles.goalEmoji}>{goal.emoji}</Text>
+                      <View style={styles.goalInfo}>
+                        <Text style={styles.goalTitle}>{goal.title}</Text>
+                        {daysTo !== null && (
+                          <Text style={[styles.goalDeadline, { color: daysTo < 7 ? Colors.danger : Colors.textSecondary }]}>
+                            {daysTo === 0 ? 'Due today!' : `${daysTo} days left`}
+                          </Text>
+                        )}
+                      </View>
+                      <Text style={[styles.goalPct, { color }]}>{pct.toFixed(0)}%</Text>
+                      <TouchableOpacity onPress={() => openEditModal(goal)} style={styles.editBtn} hitSlop={8}>
+                        <Ionicons name="pencil-outline" size={16} color={Colors.textTertiary} />
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => confirmDeleteGoal(goal)} style={styles.deleteBtn} hitSlop={8}>
+                        <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
+                      </TouchableOpacity>
                     </View>
-                    <Text style={[styles.goalPct, { color }]}>{pct.toFixed(0)}%</Text>
-                    <TouchableOpacity onPress={() => confirmDeleteGoal(goal)} style={styles.deleteBtn} hitSlop={8}>
-                      <Ionicons name="trash-outline" size={16} color={Colors.textTertiary} />
+
+                    {/* Progress bar */}
+                    <View style={styles.progressTrack}>
+                      <Animated.View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: color }]} />
+                    </View>
+
+                    <View style={styles.goalAmounts}>
+                      <Text style={styles.goalSaved}>{formatCurrency(goal.currentAmount, currency)} saved</Text>
+                      <Text style={styles.goalRemaining}>{formatCurrency(remaining, currency)} to go</Text>
+                    </View>
+
+                    {/* Target */}
+                    <View style={styles.goalTarget}>
+                      <Ionicons name="flag-outline" size={14} color={Colors.textSecondary} />
+                      <Text style={styles.goalTargetText}>Target: {formatCurrency(goal.targetAmount, currency)}</Text>
+                    </View>
+
+                    <TouchableOpacity style={styles.contributeBtn} onPress={() => openContrib(goal)}>
+                      <Ionicons name="add-circle-outline" size={16} color="#fff" />
+                      <Text style={styles.contributeBtnText}>Add savings</Text>
                     </TouchableOpacity>
-                  </View>
-
-                  {/* Progress bar */}
-                  <View style={styles.progressTrack}>
-                    <Animated.View style={[styles.progressFill, { width: `${pct}%` as any, backgroundColor: color }]} />
-                  </View>
-
-                  <View style={styles.goalAmounts}>
-                    <Text style={styles.goalSaved}>{formatCurrency(goal.currentAmount, currency)} saved</Text>
-                    <Text style={styles.goalRemaining}>{formatCurrency(remaining, currency)} to go</Text>
-                  </View>
-
-                  {/* Target */}
-                  <View style={styles.goalTarget}>
-                    <Ionicons name="flag-outline" size={14} color={Colors.textSecondary} />
-                    <Text style={styles.goalTargetText}>Target: {formatCurrency(goal.targetAmount, currency)}</Text>
-                  </View>
-
-                  <TouchableOpacity style={styles.contributeBtn} onPress={() => openContrib(goal)}>
-                    <Ionicons name="add-circle-outline" size={16} color="#fff" />
-                    <Text style={styles.contributeBtnText}>Add savings</Text>
-                  </TouchableOpacity>
-                </Card>
+                  </Card>
+                </TouchableOpacity>
               );
             })}
           </>
@@ -286,12 +330,12 @@ export function GoalsScreen() {
         )}
       </ScrollView>
 
-      {/* ── Add Goal Modal ── */}
-      <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={() => setShowAddModal(false)}>
+      {/* ── Add / Edit Goal Modal ── */}
+      <Modal visible={showAddModal} animationType="slide" presentationStyle="pageSheet" onRequestClose={closeAddModal}>
         <SafeAreaView style={styles.modal}>
           <View style={styles.modalHeader}>
-            <Text style={styles.modalTitle}>New Savings Goal</Text>
-            <TouchableOpacity onPress={() => setShowAddModal(false)}>
+            <Text style={styles.modalTitle}>{editingGoal ? 'Edit Goal' : 'New Savings Goal'}</Text>
+            <TouchableOpacity onPress={closeAddModal}>
               <Ionicons name="close" size={24} color={Colors.text} />
             </TouchableOpacity>
           </View>
@@ -319,8 +363,8 @@ export function GoalsScreen() {
             <Text style={styles.fieldLabel}>Deadline (optional, YYYY-MM-DD)</Text>
             <TextInput style={styles.input} value={deadline} onChangeText={setDeadline} placeholder="2026-12-31" placeholderTextColor={Colors.textTertiary} />
 
-            <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleAddGoal} disabled={saving}>
-              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : 'Create Goal'}</Text>
+            <TouchableOpacity style={[styles.saveBtn, saving && styles.saveBtnDisabled]} onPress={handleSaveGoal} disabled={saving}>
+              <Text style={styles.saveBtnText}>{saving ? 'Saving...' : editingGoal ? 'Save Changes' : 'Create Goal'}</Text>
             </TouchableOpacity>
           </ScrollView>
           </KeyboardAvoidingView>
@@ -409,6 +453,7 @@ const styles = StyleSheet.create({
   goalTitle:    { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
   goalDeadline: { fontSize: Typography.xs, marginTop: 2 },
   goalPct:      { fontSize: Typography.lg, fontWeight: Typography.bold },
+  editBtn:      { padding: 4 },
   deleteBtn:    { padding: 4 },
 
   progressTrack: { height: 10, borderRadius: Radius.full, backgroundColor: Colors.border, overflow: 'hidden' },
