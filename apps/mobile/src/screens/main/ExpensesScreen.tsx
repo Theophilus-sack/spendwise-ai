@@ -107,13 +107,22 @@ export function ExpensesScreen() {
             </View>
             <Text style={styles.headerTitle}>SpendWise AI</Text>
           </View>
-          <TouchableOpacity
-            style={styles.headerActionBtn}
-            onPress={() => nav.navigate("Export")}
-            hitSlop={8}
-          >
-            <Ionicons name="download-outline" size={19} color="#fff" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.headerActionBtn}
+              onPress={() => nav.navigate("StatementImport")}
+              hitSlop={8}
+            >
+              <Ionicons name="document-text-outline" size={19} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.headerActionBtn}
+              onPress={() => nav.navigate("Export")}
+              hitSlop={8}
+            >
+              <Ionicons name="download-outline" size={19} color="#fff" />
+            </TouchableOpacity>
+          </View>
         </View>
       </LinearGradient>
 
@@ -288,6 +297,10 @@ const styles = StyleSheet.create({
     fontSize: Typography.base,
     fontWeight: Typography.bold,
     color: "#fff",
+  },
+  headerActions: {
+    flexDirection: "row",
+    gap: Spacing.sm,
   },
   headerActionBtn: {
     width: 38,

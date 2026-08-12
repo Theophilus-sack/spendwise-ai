@@ -101,6 +101,70 @@ export function categorizeLocally(
 
 export const LOW_CONFIDENCE_THRESHOLD = 0.70;
 
+// ─── Learned merchant overrides ─────────────────────────────────────────────
+
+export interface CategoryHistoryEntry {
+  merchantName?: string;
+  description?: string;
+  category: ExpenseCategory;
+  date: string;
+}
+
+function normalizeKey(text: string): string {
+  return text.trim().toLowerCase();
+}
+
+function candidateTexts(merchantName: string | undefined, description: string | undefined): string[] {
+  const out: string[] = [];
+  if (merchantName && merchantName.trim()) out.push(normalizeKey(merchantName));
+  if (description && description.trim()) out.push(normalizeKey(description));
+  return out;
+}
+
+// Whole-word substring match in either direction — a strict equality check
+// missed real cases like a history entry "Waakye" not matching a later "50
+// cedis on waakye today" (extra words break exact equality even though it's
+// obviously the same thing). Word-boundary anchored so it doesn't do what
+// the old bare-substring merchant matching bug used to (see MERCHANT_RULES
+// above): "bar" must not match inside "barber". A 3-character floor on the
+// shorter side avoids one-letter/two-letter fragments ("at", "on") matching
+// almost anything; exact equality below that floor still matches via the
+// short-circuit before the length check runs.
+function textsMatch(a: string, b: string): boolean {
+  if (a === b) return true;
+  const [shorter, longer] = a.length <= b.length ? [a, b] : [b, a];
+  if (shorter.length < 3) return false;
+  return new RegExp(`\\b${escapeRegExp(shorter)}\\b`, 'i').test(longer);
+}
+
+/**
+ * Prior match on merchant/description in the user's own expense history —
+ * the strongest signal available, since it's literally what this user
+ * already decided for the same merchant or item before. Matches on either
+ * field, in either direction, as a whole-word substring rather than requiring
+ * an exact string — free-text entries rarely repeat verbatim. Most recent
+ * match wins, so a later correction overrides an earlier one. Runs entirely
+ * on-device against already-cached expenses, so it works offline and needs
+ * no extra network round trip.
+ */
+export function findMerchantCategoryOverride(
+  merchantName: string | undefined,
+  description: string | undefined,
+  history: CategoryHistoryEntry[],
+): { category: ExpenseCategory; confidence: number } | undefined {
+  const queryTexts = candidateTexts(merchantName, description);
+  if (queryTexts.length === 0) return undefined;
+
+  const matches = history.filter((h) => {
+    const historyTexts = candidateTexts(h.merchantName, h.description);
+    return historyTexts.some((ht) => queryTexts.some((qt) => textsMatch(qt, ht)));
+  });
+  if (matches.length === 0) return undefined;
+
+  const mostRecent = matches.reduce((a, b) => (a.date > b.date ? a : b));
+  return { category: mostRecent.category, confidence: 0.95 };
+}
+
 // ─── Local NLP fallback ─────────────────────────────────────────────────────
 
 export interface LocalExpenseParse {
@@ -127,6 +191,23 @@ export function parseExpenseLocally(input: string, today: string): LocalExpenseP
   const date = /\byesterday\b/i.test(input) ? shiftDate(today, -1) : today;
 
   return { amount, category, description: input.trim(), date, confidence };
+}
+
+/**
+ * Multi-item counterpart to parseExpenseLocally, used as the offline fallback
+ * for batch Quick Add / voice input. Splits on commas/semicolons/newlines —
+ * the same separators the cloud parser's prompt is told to expect — and runs
+ * the single-item parser per segment. Segments with no extractable amount are
+ * dropped rather than surfaced as a zero-amount draft the user would just
+ * have to discard.
+ */
+export function parseExpensesLocally(input: string, today: string): LocalExpenseParse[] {
+  return input
+    .split(/[,;\n]+/)
+    .map((segment) => segment.trim())
+    .filter((segment) => segment.length > 0)
+    .map((segment) => parseExpenseLocally(segment, today))
+    .filter((parsed) => parsed.amount !== undefined);
 }
 
 function shiftDate(iso: string, deltaDays: number): string {

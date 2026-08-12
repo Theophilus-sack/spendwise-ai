@@ -42,7 +42,14 @@ serve(async (req) => {
       conversation = data;
     }
 
-    const history: Anthropic.MessageParam[] = (conversation?.messages ?? []).slice(-16); // last 8 turns
+    // Stored turns carry a `timestamp` field (for the client's UI) that
+    // Claude's API doesn't expect on message objects — sending it straight
+    // through made every message after the first fail once real history
+    // existed to include, while the very first message (empty history)
+    // worked fine and masked the bug.
+    const history: Anthropic.MessageParam[] = (conversation?.messages ?? [])
+      .slice(-16) // last 8 turns
+      .map((m: any) => ({ role: m.role, content: m.content }));
 
     // ── Call Claude ──────────────────────────────────────────────────────────
     const response = await anthropic.messages.create({
@@ -100,7 +107,7 @@ async function buildFinancialContext(supabase: any, userId: string) {
 
   const [{ data: profile }, { data: expenses }, { data: budgets }, { data: goals }, { data: fds }] =
     await Promise.all([
-      supabase.from('profiles').select('full_name,currency,monthly_income,savings_target_pct,spending_personality').eq('user_id', userId).single(),
+      supabase.from('profiles').select('full_name,currency,monthly_income,savings_target_pct,spending_personality,location').eq('user_id', userId).single(),
       supabase.from('expenses').select('amount,category,date,merchant_name').eq('user_id', userId).gte('date', lmStart).order('date', { ascending: false }),
       supabase.from('budgets').select('category,limit_amount,period').eq('user_id', userId),
       supabase.from('goals').select('title,target_amount,current_amount,deadline,status').eq('user_id', userId).eq('status', 'active'),
@@ -118,6 +125,7 @@ async function buildFinancialContext(supabase: any, userId: string) {
 
   return {
     name: profile?.full_name ?? 'the user',
+    location: profile?.location || null,
     currency: profile?.currency ?? 'GHS',
     monthlyIncome: profile?.monthly_income ?? 0,
     savingsTargetPct: profile?.savings_target_pct ?? 20,
@@ -145,7 +153,11 @@ async function buildFinancialContext(supabase: any, userId: string) {
 }
 
 function buildSystemPrompt(ctx: any): string {
-  return `You are SpendWise AI, a personal financial advisor for ${ctx.name} in Ghana.
+  const locationRule = ctx.location
+    ? `8. This user is in ${ctx.location}, Ghana. When suggesting cheaper alternatives (transport, food, shopping, etc.), name options actually realistic for ${ctx.location} specifically — local market names, typical local transport (trotro/shared taxi routes, okada where relevant), neighborhood-level suggestions — not generic "Ghana" advice that could apply anywhere in the country.`
+    : `8. No specific location is set for this user (just "Ghana"). Give Ghana-general affordable alternatives, and mention once that adding their city/town in Settings would let you suggest more specific local options.`;
+
+  return `You are SpendWise AI, a personal financial advisor for ${ctx.name} in Ghana${ctx.location ? ` (based in ${ctx.location})` : ''}.
 Today is ${new Date().toLocaleDateString('en-GH', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}.
 
 RULES:
@@ -156,6 +168,7 @@ RULES:
 5. Do not invent numbers not present in the context below
 6. If asked about something unrelated to personal finance, politely redirect
 7. Currency is ${ctx.currency}
+${locationRule}
 
 FINANCIAL CONTEXT:
 ${JSON.stringify(ctx, null, 2)}

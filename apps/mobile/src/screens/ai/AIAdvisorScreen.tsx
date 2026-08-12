@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View, Text, StyleSheet, FlatList, TextInput, TouchableOpacity,
   KeyboardAvoidingView, Platform, ActivityIndicator,
@@ -9,7 +9,8 @@ import { Ionicons } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
-import { callEdgeFunction } from '@/lib/supabase';
+import { callEdgeFunction, supabase } from '@/lib/supabase';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import type { ChatMessage, AIAdvisorResponse } from '@spendwise/shared';
 import type { AIAdvisorProps } from '@/navigation/types';
@@ -21,6 +22,12 @@ const QUICK_PROMPTS = [
   'What\'s my biggest spending problem?',
 ];
 
+const WELCOME_MESSAGE: ChatMessage = {
+  role: 'assistant',
+  content: "Hi! I'm your AI financial advisor. I have access to your complete spending history, budgets, and goals. Ask me anything about your finances — I'll give you specific, personalised advice based on your actual data. 💸",
+  timestamp: new Date().toISOString(),
+};
+
 export function AIAdvisorScreen() {
   const route  = useRoute<AIAdvisorProps['route']>();
   const { user } = useAuthStore();
@@ -29,23 +36,45 @@ export function AIAdvisorScreen() {
   const [input,          setInput]          = useState('');
   const [loading,        setLoading]        = useState(false);
   const [conversationId, setConversationId] = useState<string | undefined>();
-  const listRef = useRef<FlatList>(null);
 
   useEffect(() => {
-    // Welcome message
-    setMessages([{
-      role: 'assistant',
-      content: "Hi! I'm your AI financial advisor. I have access to your complete spending history, budgets, and goals. Ask me anything about your finances — I'll give you specific, personalised advice based on your actual data. 💸",
-      timestamp: new Date().toISOString(),
-    }]);
+    (async () => {
+      // Resume the most recent conversation instead of always starting
+      // fresh — previously every screen visit began blank, so the AI (and
+      // the user) lost all prior context the moment they left the screen.
+      let resumedId: string | undefined;
+      if (user) {
+        const { data } = await supabase
+          .from('ai_conversations')
+          .select('id, messages')
+          .eq('user_id', user.id)
+          .order('updated_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
 
-    // Auto-trigger initial message if provided
-    if (route.params?.initialMessage) {
-      setTimeout(() => sendMessage(route.params!.initialMessage!), 300);
-    }
+        if (data && Array.isArray(data.messages) && data.messages.length > 0) {
+          setMessages(data.messages as ChatMessage[]);
+          setConversationId(data.id);
+          resumedId = data.id;
+        } else {
+          setMessages([WELCOME_MESSAGE]);
+        }
+      } else {
+        setMessages([WELCOME_MESSAGE]);
+      }
+
+      // Auto-trigger initial message if provided (e.g. "Ask AI Coach" deep
+      // links from Weekly Reflection / What-If Simulator) — pass the just-
+      // resolved conversation id explicitly rather than relying on the
+      // `conversationId` state var, which wouldn't have re-rendered yet in
+      // this same effect and would otherwise start a stray new conversation.
+      if (route.params?.initialMessage) {
+        setTimeout(() => sendMessage(route.params!.initialMessage!, resumedId), 300);
+      }
+    })();
   }, []);
 
-  const sendMessage = async (text?: string) => {
+  const sendMessage = async (text?: string, conversationIdOverride?: string) => {
     const messageText = text ?? input.trim();
     if (!messageText || loading) return;
 
@@ -63,7 +92,7 @@ export function AIAdvisorScreen() {
     try {
       const response = await callEdgeFunction<AIAdvisorResponse>('ai-advisor', {
         message: messageText,
-        conversationId,
+        conversationId: conversationIdOverride ?? conversationId,
         userId: user?.id,
       });
 
@@ -84,7 +113,6 @@ export function AIAdvisorScreen() {
       }]);
     } finally {
       setLoading(false);
-      setTimeout(() => listRef.current?.scrollToEnd({ animated: true }), 100);
     }
   };
 
@@ -122,22 +150,32 @@ export function AIAdvisorScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : undefined}
         keyboardVerticalOffset={90}
       >
-        <FlatList
-          ref={listRef}
-          data={messages}
-          renderItem={renderMessage}
-          keyExtractor={(_, i) => i.toString()}
-          contentContainerStyle={styles.list}
-          onContentSizeChange={() => listRef.current?.scrollToEnd()}
-          ListFooterComponent={loading ? (
-            <View style={styles.typingIndicator}>
-              <View style={styles.avatar}><Text style={styles.avatarEmoji}>🤖</Text></View>
-              <View style={styles.bubbleAssistant}>
-                <ActivityIndicator size="small" color={Colors.primary} />
+        <ErrorBoundary label="the chat">
+          <FlatList
+            // Inverted, newest-first data instead of an imperative scrollToEnd()
+            // call — that native scroll command was crashing on some builds
+            // (Expo Go / New Architecture command-registry issue). This is the
+            // standard chat-list pattern: the newest message is always at data
+            // index 0, which an inverted list renders at the visual bottom, so
+            // "stay scrolled to the latest message" falls out for free with no
+            // native command involved at all.
+            data={[...messages].reverse()}
+            inverted
+            renderItem={renderMessage}
+            keyExtractor={(_, i) => i.toString()}
+            contentContainerStyle={styles.list}
+            // inverted flips Header/Footer positions too — Header renders at
+            // the visual bottom, which is where the typing indicator belongs.
+            ListHeaderComponent={loading ? (
+              <View style={styles.typingIndicator}>
+                <View style={styles.avatar}><Text style={styles.avatarEmoji}>🤖</Text></View>
+                <View style={styles.bubbleAssistant}>
+                  <ActivityIndicator size="small" color={Colors.primary} />
+                </View>
               </View>
-            </View>
-          ) : null}
-        />
+            ) : null}
+          />
+        </ErrorBoundary>
 
         {/* Quick prompts */}
         {messages.length <= 1 && (

@@ -47,6 +47,9 @@ verify_jwt = true
 [functions.ocr-receipt]
 verify_jwt = true
 
+[functions.import-statement]
+verify_jwt = true
+
 [functions.detect-anomaly]
 verify_jwt = true
 

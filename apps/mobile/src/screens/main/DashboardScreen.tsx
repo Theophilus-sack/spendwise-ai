@@ -13,6 +13,7 @@ import { useBudgetStore }  from '@/store/budgetStore';
 import { useIncomeStore }  from '@/store/incomeStore';
 import { useWeeklyReflectionStore } from '@/store/weeklyReflectionStore';
 import { useDisciplineStore } from '@/store/disciplineStore';
+import { useNotificationStore } from '@/store/notificationStore';
 import { StatCard, Card, BudgetBar } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
@@ -31,6 +32,8 @@ export function DashboardScreen() {
   const { entries, load: loadIncome, getTotalThisMonth: getIncomeThisMonth } = useIncomeStore();
   const { current: currentReflection, streak: reflectionStreak, load: loadReflection } = useWeeklyReflectionStore();
   const { score, grade, load: loadScore } = useDisciplineStore();
+  const { items: notifications, load: loadNotifications } = useNotificationStore();
+  const unreadCount = notifications.filter(n => !n.readAt).length;
 
   const [coachDismissed, setCoachDismissed] = useState(false);
 
@@ -47,7 +50,10 @@ export function DashboardScreen() {
 
   const refresh = useCallback(async () => {
     if (!user) return;
-    await Promise.all([loadExpenses(user.id), loadBudgets(user.id), loadIncome(user.id), loadReflection(user.id), loadScore(user.id)]);
+    await Promise.all([
+      loadExpenses(user.id), loadBudgets(user.id), loadIncome(user.id),
+      loadReflection(user.id), loadScore(user.id), loadNotifications(user.id),
+    ]);
   }, [user]);
 
   useEffect(() => { refresh(); }, []);
@@ -115,6 +121,11 @@ export function DashboardScreen() {
           <View style={styles.headerActions}>
             <TouchableOpacity style={styles.iconBtn} onPress={() => nav.navigate('Notifications')}>
               <Ionicons name="notifications-outline" size={22} color={Colors.text} />
+              {unreadCount > 0 && (
+                <View style={styles.notifBadge}>
+                  <Text style={styles.notifBadgeText}>{unreadCount > 99 ? '99+' : unreadCount}</Text>
+                </View>
+              )}
             </TouchableOpacity>
             <TouchableOpacity style={styles.iconBtn} onPress={() => nav.navigate('AIAdvisor', {})}>
               <Ionicons name="chatbubble-ellipses-outline" size={22} color={Colors.primary} />
@@ -449,6 +460,12 @@ const styles = StyleSheet.create({
   date:          { fontSize: Typography.sm, color: Colors.textSecondary, marginTop: 2 },
   headerActions: { flexDirection: 'row', gap: Spacing.sm },
   iconBtn:       { width: 38, height: 38, borderRadius: Radius.full, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center', ...Shadows.sm },
+  notifBadge: {
+    position: 'absolute', top: -2, right: -2, minWidth: 16, height: 16, borderRadius: 8,
+    backgroundColor: Colors.danger, alignItems: 'center', justifyContent: 'center',
+    paddingHorizontal: 3, borderWidth: 1.5, borderColor: Colors.surface,
+  },
+  notifBadgeText: { color: '#fff', fontSize: 9, fontWeight: Typography.bold },
 
   reflectionPill:     { flexDirection: 'row', alignSelf: 'flex-end', alignItems: 'center', gap: 6, backgroundColor: Colors.surface, borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, marginTop: -Spacing.sm, ...Shadows.sm },
   reflectionPillDone: { backgroundColor: Colors.success + '12' },

@@ -6,6 +6,7 @@ import { enforceRateLimit, RateLimitError } from '../_shared/rateLimit.ts';
 import { optionalString } from '../_shared/validate.ts';
 import { CORS_HEADERS, json } from '../_shared/http.ts';
 import { CLAUDE_MODEL } from '../_shared/anthropic.ts';
+import { findCategoryOverride, buildFewShotLines } from '../_shared/categoryHistory.ts';
 
 const anthropic = new Anthropic({ apiKey: Deno.env.get('ANTHROPIC_API_KEY')! });
 
@@ -27,6 +28,24 @@ serve(async (req) => {
 
     if (!input) return json({ category: 'other', confidence: 0.4 });
 
+    // Learn from this user's own history before asking the model anything —
+    // an exact repeat merchant/description is the strongest possible signal,
+    // since it's literally what they already decided last time.
+    const { data: history } = await supabase
+      .from('expenses')
+      .select('merchant_name, description, category, date')
+      .eq('user_id', userId)
+      .order('date', { ascending: false })
+      .limit(200);
+
+    const override = findCategoryOverride(merchantHint, description, history ?? []);
+    if (override) return json(override);
+
+    const fewShot = buildFewShotLines(history ?? []);
+    const personalization = fewShot.length > 0
+      ? `\n\nThis user's own past categorizations (follow their pattern for similar merchants):\n${fewShot.join('\n')}`
+      : '';
+
     const message = await anthropic.messages.create({
       model: CLAUDE_MODEL,
       max_tokens: 60,
@@ -45,7 +64,7 @@ Examples:
 "KFC Accra Mall, ₵78" → {"category": "food", "confidence": 0.97}
 "Bolt ride, ₵32" → {"category": "transport", "confidence": 0.99}
 "DSTV, ₵120" → {"category": "bills", "confidence": 0.96}
-"Silverbird Cinema, ₵80" → {"category": "entertainment", "confidence": 0.95}
+"Silverbird Cinema, ₵80" → {"category": "entertainment", "confidence": 0.95}${personalization}
 
 Input: "${input}", ₵${amount ?? '?'}`,
       }],

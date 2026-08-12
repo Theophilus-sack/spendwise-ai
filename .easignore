@@ -1,0 +1,32 @@
+node_modules/
+.expo/
+dist/
+build/
+*.log
+.env
+.env.local
+.env.*.local
+bun.lockb
+*.tsbuildinfo
+
+# Supabase
+supabase/.branches
+supabase/.temp
+supabase/functions/.cache
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/settings.json
+.idea/
+*.swp
+
+# EAS uses this file instead of .gitignore when present, so everything above
+# is copied from .gitignore to avoid silently re-including node_modules etc.
+# This is the one addition beyond .gitignore's own rules — .bun-cache is
+# (unusually) tracked in git, but its huge symlink tree breaks EAS's project
+# archive step on Windows and shouldn't be uploaded anyway (EAS installs
+# dependencies fresh on its own build servers).
+.bun-cache/

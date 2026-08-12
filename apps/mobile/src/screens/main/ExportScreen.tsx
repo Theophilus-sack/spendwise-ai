@@ -5,11 +5,12 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { Card, Button } from '@/components/ui';
+import { DateRangePickerModal } from '@/components/DateRangePickerModal';
 import { Colors, Typography, Spacing, Radius } from '@/theme';
-import { formatCurrency } from '@spendwise/shared';
+import { formatCurrency, formatDateShort } from '@spendwise/shared';
 import { exportExpensesCSV, exportExpensesPDF } from '@/lib/export';
 
-type RangePreset = 'this_month' | 'last_month' | 'this_year' | 'all_time';
+type RangePreset = 'this_month' | 'last_month' | 'this_year' | 'all_time' | 'custom';
 type Format = 'csv' | 'pdf';
 
 const RANGE_OPTIONS: Array<{ id: RangePreset; label: string }> = [
@@ -23,7 +24,9 @@ function iso(d: Date): string {
   return d.toISOString().split('T')[0];
 }
 
-function getRangeBounds(preset: RangePreset): { start: string | null; end: string | null; label: string } {
+// `custom` is handled separately by the caller, since it needs the picked
+// range rather than anything computable from just today's date.
+function getRangeBounds(preset: Exclude<RangePreset, 'custom'>): { start: string | null; end: string | null; label: string } {
   const now = new Date();
   if (preset === 'this_month') {
     const start = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -52,10 +55,22 @@ export function ExportScreen() {
   const [range,      setRange]      = useState<RangePreset>('this_month');
   const [format,     setFormat]     = useState<Format>('csv');
   const [exporting,  setExporting]  = useState(false);
+  const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => { if (user) loadExpenses(user.id); }, [user?.id]);
 
-  const { start, end, label } = useMemo(() => getRangeBounds(range), [range]);
+  const { start, end, label } = useMemo(() => {
+    if (range === 'custom' && customRange) {
+      const sameDay = customRange.start === customRange.end;
+      return {
+        start: customRange.start,
+        end:   customRange.end,
+        label: sameDay ? formatDateShort(customRange.start) : `${formatDateShort(customRange.start)} – ${formatDateShort(customRange.end)}`,
+      };
+    }
+    return getRangeBounds(range === 'custom' ? 'this_month' : range);
+  }, [range, customRange]);
 
   const filtered = useMemo(() => {
     return expenses
@@ -99,6 +114,15 @@ export function ExportScreen() {
                 <Text style={[styles.chipText, range === r.id && styles.chipTextActive]}>{r.label}</Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.chip, styles.chipCustom, range === 'custom' && styles.chipActive]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={14} color={range === 'custom' ? Colors.primary : Colors.textSecondary} />
+              <Text style={[styles.chipText, range === 'custom' && styles.chipTextActive]}>
+                {range === 'custom' && customRange ? label : 'Custom'}
+              </Text>
+            </TouchableOpacity>
           </View>
 
           <Text style={styles.fieldLabel}>Format</Text>
@@ -137,6 +161,17 @@ export function ExportScreen() {
           size="lg"
         />
       </ScrollView>
+
+      <DateRangePickerModal
+        visible={showDatePicker}
+        onClose={() => setShowDatePicker(false)}
+        initialStart={customRange?.start}
+        initialEnd={customRange?.end}
+        onApply={(rangeStart, rangeEnd) => {
+          setCustomRange({ start: rangeStart, end: rangeEnd });
+          setRange('custom');
+        }}
+      />
     </SafeAreaView>
   );
 }
@@ -151,6 +186,7 @@ const styles = StyleSheet.create({
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chip:     { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surfaceAlt },
   chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '18' },
+  chipCustom: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   chipText: { fontSize: Typography.sm, color: Colors.textSecondary, fontWeight: Typography.medium },
   chipTextActive: { color: Colors.primary, fontWeight: Typography.semibold },
 

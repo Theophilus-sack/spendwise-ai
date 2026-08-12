@@ -7,6 +7,7 @@ import { Card, BudgetBar } from '@/components/ui';
 import { DonutChart, DonutLegend } from '@/components/charts/DonutChart';
 import { TrendChart } from '@/components/charts/TrendChart';
 import { Heatmap } from '@/components/charts/Heatmap';
+import { DateRangePickerModal } from '@/components/DateRangePickerModal';
 import { useAuthStore } from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore } from '@/store/budgetStore';
@@ -37,7 +38,7 @@ const PAYMENT_METHOD_COLORS: Record<PaymentMethod, string> = {
   cash:         '#2ECC71',
 };
 
-type PeriodType = 'day' | 'week' | 'month';
+type PeriodType = 'day' | 'week' | 'month' | 'custom';
 const PERIOD_OPTIONS: Array<{ id: PeriodType; label: string }> = [
   { id: 'day',   label: 'Day' },
   { id: 'week',  label: 'Week' },
@@ -45,8 +46,10 @@ const PERIOD_OPTIONS: Array<{ id: PeriodType; label: string }> = [
 ];
 
 // Statement-style period navigation (day/week/month tabs + prev/next paging),
-// the same pattern MTN MoMo's transaction history uses.
-function getPeriodBounds(type: PeriodType, anchor: Date): { start: string; end: string; label: string } {
+// the same pattern MTN MoMo's transaction history uses. `custom` is handled
+// separately by the caller (a picked date range has no natural "anchor" to
+// compute from), so this never gets called with type === 'custom'.
+function getPeriodBounds(type: Exclude<PeriodType, 'custom'>, anchor: Date): { start: string; end: string; label: string } {
   if (type === 'day') {
     const iso = toISODate(anchor);
     const isToday = iso === toISODate(new Date());
@@ -97,6 +100,8 @@ export function AnalyticsScreen() {
 
   const [periodType, setPeriodType] = useState<PeriodType>('month');
   const [anchor, setAnchor] = useState(() => new Date());
+  const [customRange, setCustomRange] = useState<{ start: string; end: string } | null>(null);
+  const [showDatePicker, setShowDatePicker] = useState(false);
 
   useEffect(() => {
     if (!user) return;
@@ -105,8 +110,18 @@ export function AnalyticsScreen() {
     loadIncome(user.id);
   }, [user?.id]);
 
-  const { start, end, label } = useMemo(() => getPeriodBounds(periodType, anchor), [periodType, anchor]);
-  const isCurrentPeriod = useMemo(() => end >= toISODate(new Date()), [end]);
+  const { start, end, label } = useMemo(() => {
+    if (periodType === 'custom' && customRange) {
+      const sameDay = customRange.start === customRange.end;
+      return {
+        start: customRange.start,
+        end:   customRange.end,
+        label: sameDay ? formatDateShort(customRange.start) : `${formatDateShort(customRange.start)} – ${formatDateShort(customRange.end)}`,
+      };
+    }
+    return getPeriodBounds(periodType === 'custom' ? 'month' : periodType, anchor);
+  }, [periodType, anchor, customRange]);
+  const isCurrentPeriod = useMemo(() => periodType === 'custom' || end >= toISODate(new Date()), [end, periodType]);
 
   const periodExpenses = useMemo(
     () => expenses.filter(e => e.date >= start && e.date <= end).sort((a, b) => b.date.localeCompare(a.date) || (b.timeOfDay ?? '').localeCompare(a.timeOfDay ?? '')),
@@ -217,21 +232,44 @@ export function AnalyticsScreen() {
                 <Text style={[styles.periodTabText, periodType === p.id && styles.periodTabTextActive]}>{p.label}</Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.periodCalendarBtn, periodType === 'custom' && styles.periodTabActive]}
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Ionicons name="calendar-outline" size={16} color={periodType === 'custom' ? '#fff' : Colors.textSecondary} />
+            </TouchableOpacity>
           </View>
           <View style={styles.periodNav}>
-            <TouchableOpacity onPress={() => setAnchor(a => shiftAnchor(a, periodType, -1))} hitSlop={8}>
+            <TouchableOpacity
+              onPress={() => setAnchor(a => shiftAnchor(a, periodType === 'custom' ? 'day' : periodType, -1))}
+              disabled={periodType === 'custom'}
+              hitSlop={8}
+              style={[periodType === 'custom' && styles.hidden]}
+            >
               <Ionicons name="chevron-back" size={20} color={Colors.textSecondary} />
             </TouchableOpacity>
             <Text style={styles.periodLabel}>{label}</Text>
             <TouchableOpacity
-              onPress={() => setAnchor(a => shiftAnchor(a, periodType, 1))}
+              onPress={() => setAnchor(a => shiftAnchor(a, periodType === 'custom' ? 'day' : periodType, 1))}
               disabled={isCurrentPeriod}
               hitSlop={8}
+              style={[periodType === 'custom' && styles.hidden]}
             >
               <Ionicons name="chevron-forward" size={20} color={isCurrentPeriod ? Colors.border : Colors.textSecondary} />
             </TouchableOpacity>
           </View>
         </Card>
+
+        <DateRangePickerModal
+          visible={showDatePicker}
+          onClose={() => setShowDatePicker(false)}
+          initialStart={customRange?.start}
+          initialEnd={customRange?.end}
+          onApply={(rangeStart, rangeEnd) => {
+            setCustomRange({ start: rangeStart, end: rangeEnd });
+            setPeriodType('custom');
+          }}
+        />
 
         {/* ── Income vs Spending ── */}
         <Card>
@@ -406,8 +444,10 @@ const styles = StyleSheet.create({
   periodTabActive: { backgroundColor: Colors.primary },
   periodTabText: { fontSize: Typography.sm, fontWeight: Typography.medium, color: Colors.textSecondary },
   periodTabTextActive: { color: '#fff', fontWeight: Typography.semibold },
+  periodCalendarBtn: { paddingHorizontal: Spacing.md, alignItems: 'center', justifyContent: 'center', borderRadius: Radius.sm },
   periodNav: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   periodLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.text },
+  hidden: { opacity: 0 },
 
   incomeRow: { flexDirection: 'row', justifyContent: 'space-between' },
   incomeCol: { alignItems: 'center', gap: 2, flex: 1 },

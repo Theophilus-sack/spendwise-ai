@@ -1,2 +1,10 @@
 [install]
 cache = "./.bun-cache"
+# Metro (RN's bundler) doesn't reliably follow bun's default "isolated"
+# node_modules layout for nested/deep-path transitive imports (e.g.
+# react-native-calendars requiring "lodash/isEmpty") — the dependency exists
+# on disk but sits behind a symlink-inside-a-symlink Metro's crawler won't
+# walk into. "hoisted" gives a flat node_modules like npm/yarn classic, which
+# is what Metro actually expects, and avoids this whole category of failure
+# instead of patching around it package by package.
+linker = "hoisted"

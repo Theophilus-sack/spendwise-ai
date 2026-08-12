@@ -32,6 +32,9 @@ export type AppTabParamList = {
 export type AppStackParamList = {
   Tabs:              undefined;
   AddExpense:        { prefill?: Partial<import('@spendwise/shared').CreateExpenseInput>; expenseId?: string };
+  BatchReview:       { drafts: import('@spendwise/shared').DraftExpense[] };
+  VoiceExpense:      undefined;
+  StatementImport:   undefined;
   ReceiptScanner:    undefined;
   AIAdvisor:         { initialMessage?: string };
   Goals:             undefined;
@@ -67,4 +70,5 @@ export type SplashScreenProps  = NativeStackScreenProps<AuthStackParamList, 'Spl
 export type LoginScreenProps   = NativeStackScreenProps<AuthStackParamList, 'Login'>;
 export type SignUpScreenProps  = NativeStackScreenProps<AuthStackParamList, 'SignUp'>;
 export type AddExpenseProps    = NativeStackScreenProps<AppStackParamList, 'AddExpense'>;
+export type BatchReviewProps   = NativeStackScreenProps<AppStackParamList, 'BatchReview'>;
 export type AIAdvisorProps     = NativeStackScreenProps<AppStackParamList, 'AIAdvisor'>;

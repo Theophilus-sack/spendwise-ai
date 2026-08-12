@@ -2,6 +2,9 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { TabNavigator }       from './TabNavigator';
 import { AddExpenseScreen }   from '@/screens/main/AddExpenseScreen';
+import { BatchReviewScreen }  from '@/screens/main/BatchReviewScreen';
+import { VoiceExpenseScreen } from '@/screens/main/VoiceExpenseScreen';
+import { StatementImportScreen } from '@/screens/main/StatementImportScreen';
 import { AIAdvisorScreen }    from '@/screens/ai/AIAdvisorScreen';
 import { GoalsScreen }        from '@/screens/main/GoalsScreen';
 import { IncomeScreen }       from '@/screens/main/IncomeScreen';
@@ -36,6 +39,9 @@ export function AppNavigator() {
     >
       <Stack.Screen name="Tabs"            component={TabNavigator}          options={{ headerShown: false }} />
       <Stack.Screen name="AddExpense"      component={AddExpenseScreen}      options={{ title: 'Add Expense', presentation: 'modal' }} />
+      <Stack.Screen name="BatchReview"     component={BatchReviewScreen}     options={{ title: 'Review Expenses', presentation: 'modal' }} />
+      <Stack.Screen name="VoiceExpense"    component={VoiceExpenseScreen}    options={{ title: 'Voice Add', presentation: 'modal' }} />
+      <Stack.Screen name="StatementImport" component={StatementImportScreen} options={{ title: 'Import Statement', presentation: 'modal' }} />
       <Stack.Screen name="ReceiptScanner"  component={ReceiptScannerScreen}  options={{ title: 'Scan Receipt', presentation: 'modal' }} />
       <Stack.Screen name="AIAdvisor"       component={AIAdvisorScreen}       options={{ title: 'AI Advisor' }} />
       <Stack.Screen name="Goals"           component={GoalsScreen}           options={{ title: 'Savings Goals' }} />

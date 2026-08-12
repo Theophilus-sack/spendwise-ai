@@ -6,6 +6,7 @@ import { expenseRowSchema, parseRows } from '@/lib/schemas';
 import {
   todayISO, startOfMonthISO, groupBy, sumBy,
   categorizeLocally, LOW_CONFIDENCE_THRESHOLD, generateUUID, mergeSyncedRows,
+  findMerchantCategoryOverride,
 } from '@spendwise/shared';
 import type { Expense, CreateExpenseInput, ExpenseCategory, BudgetStatus } from '@spendwise/shared';
 import { callEdgeFunction } from '@/lib/supabase';
@@ -15,7 +16,7 @@ interface ExpenseState {
   loading:    boolean;
 
   load:          (userId: string) => Promise<void>;
-  addExpense:    (userId: string, input: CreateExpenseInput) => Promise<Expense>;
+  addExpense:    (userId: string, input: CreateExpenseInput, categoryConfirmed?: boolean) => Promise<Expense>;
   updateExpense: (expense: Expense) => Promise<void>;
   deleteExpense: (id: string) => Promise<void>;
   reset:         () => void;
@@ -67,33 +68,47 @@ export const useExpenseStore = create<ExpenseState>((set, get) => ({
     }
   },
 
-  addExpense: async (userId, input) => {
+  addExpense: async (userId, input, categoryConfirmed = false) => {
     const now = new Date().toISOString();
     const id  = generateUUID();
 
-    // AI categorization (try cloud, fallback to local rule engine)
+    // `categoryConfirmed` means a human already decided this category —
+    // either they explicitly picked a chip on the Form, or it came through
+    // BatchReviewScreen's review step (see AddExpenseScreen/BatchReviewScreen
+    // for how each sets it). In that case it's final: don't second-guess it.
     let category = input.category;
     let aiCategorized = false;
     let aiConfidence: number | undefined;
 
-    if (input.description || input.merchantName) {
-      try {
-        const result = await callEdgeFunction<{ category: ExpenseCategory; confidence: number }>(
-          'categorize-expense',
-          { description: input.description, amount: input.amount, merchantHint: input.merchantName },
-        );
-        if (result.confidence >= LOW_CONFIDENCE_THRESHOLD) {
-          category = result.category;
-          aiCategorized = true;
-          aiConfidence = result.confidence;
-        }
-      } catch {
-        // Fallback to local rule engine
-        const local = categorizeLocally(input.description ?? '', input.merchantName);
-        if (local.confidence >= LOW_CONFIDENCE_THRESHOLD) {
-          category = local.category;
-          aiCategorized = true;
-          aiConfidence = local.confidence;
+    if (!categoryConfirmed) {
+      // Learn from this user's own history first — an exact repeat merchant
+      // should never need re-categorizing (by AI or by the user), since it's
+      // literally what they already decided last time. Runs on-device against
+      // already-cached expenses, so it's instant and works offline.
+      const override = findMerchantCategoryOverride(input.merchantName, input.description, get().expenses);
+      if (override) {
+        category = override.category;
+        aiCategorized = true;
+        aiConfidence = override.confidence;
+      } else if (input.description || input.merchantName) {
+        try {
+          const result = await callEdgeFunction<{ category: ExpenseCategory; confidence: number }>(
+            'categorize-expense',
+            { description: input.description, amount: input.amount, merchantHint: input.merchantName },
+          );
+          if (result.confidence >= LOW_CONFIDENCE_THRESHOLD) {
+            category = result.category;
+            aiCategorized = true;
+            aiConfidence = result.confidence;
+          }
+        } catch {
+          // Fallback to local rule engine
+          const local = categorizeLocally(input.description ?? '', input.merchantName);
+          if (local.confidence >= LOW_CONFIDENCE_THRESHOLD) {
+            category = local.category;
+            aiCategorized = true;
+            aiConfidence = local.confidence;
+          }
         }
       }
     }

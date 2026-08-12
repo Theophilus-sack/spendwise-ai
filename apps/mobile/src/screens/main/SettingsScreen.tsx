@@ -31,6 +31,7 @@ export function SettingsScreen() {
 
   // ── Preferences ──────────────────────────────────────────────────────────
   const [currency,     setCurrency]     = useState<Currency>(profile?.currency ?? 'GHS');
+  const [location,     setLocation]     = useState(profile?.location ?? '');
   const [personality,  setPersonality]  = useState<SpendingPersonality>(profile?.spendingPersonality ?? 'balanced');
   const [discipline,   setDiscipline]   = useState<DisciplineStyle>(profile?.disciplineStyle ?? 'flexible');
   const [savingsPctInput, setSavingsPctInput] = useState(String(profile?.savingsTargetPct ?? 20));
@@ -51,6 +52,7 @@ export function SettingsScreen() {
     try {
       const { error } = await supabase.from('profiles').update({
         currency,
+        location: location.trim() || null,
         spending_personality: personality,
         discipline_style:     discipline,
         savings_target_pct:   pct,
@@ -192,6 +194,17 @@ export function SettingsScreen() {
               ))}
             </View>
 
+            <Text style={styles.fieldLabel}>Location</Text>
+            <Input
+              value={location}
+              onChangeText={setLocation}
+              placeholder="e.g. Accra, Kumasi"
+              leftIcon="location-outline"
+            />
+            <Text style={styles.fieldHint}>
+              Used by AI Advisor and the What-If Simulator to suggest affordable options actually near you, not just generic Ghana-wide advice.
+            </Text>
+
             <Text style={styles.fieldLabel}>Spending personality</Text>
             {SPENDING_PERSONALITIES.map(p => (
               <TouchableOpacity
@@ -303,6 +316,7 @@ const styles = StyleSheet.create({
   card:         { gap: Spacing.md },
 
   fieldLabel: { fontSize: Typography.sm, fontWeight: Typography.semibold, color: Colors.text, marginTop: Spacing.xs },
+  fieldHint:  { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: -Spacing.xs },
 
   syncRow:         { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   syncDot:         { width: 9, height: 9, borderRadius: 5 },

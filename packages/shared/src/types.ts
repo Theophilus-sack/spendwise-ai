@@ -42,6 +42,11 @@ export interface UserProfile {
   userId: string;
   fullName: string;
   phoneNumber?: string;
+  /** e.g. "Accra", "Kumasi" — lets AI-generated advice (Ask AI Coach, What-If
+   *  Simulator) suggest actually-local affordable alternatives instead of
+   *  generic Ghana-wide ones. Optional; recommendations fall back to
+   *  country-level advice when unset. */
+  location?: string;
   currency: Currency;
   monthlyIncome: number;
   incomeSources: IncomeSource[];
@@ -114,6 +119,27 @@ export interface CreateExpenseInput {
   isRecurring?: boolean;
   recurringInterval?: 'daily' | 'weekly' | 'monthly';
   receiptImageUrl?: string;
+}
+
+/**
+ * An expense parsed from free text, voice, or a statement upload that hasn't
+ * been saved yet — held in a review list so the user can edit/discard/confirm
+ * before anything hits the database. `id` is a client-generated UUID used only
+ * to key the review-list UI, not a real expense id.
+ */
+export interface DraftExpense extends CreateExpenseInput {
+  id: string;
+  source: 'quick-add' | 'voice' | 'statement';
+  confidence?: number;
+  /** Statement imports default deposits/credits to unselected — still shown
+   *  and selectable, since the user may want to log a genuine income credit,
+   *  just not pre-checked as if it were a purchase. */
+  selected: boolean;
+  /** True for a statement credit that's genuine income (not a self-transfer,
+   *  which the extraction already excludes) — confirming this draft creates
+   *  an income entry instead of an expense. `category`/`paymentMethod` on
+   *  this draft are unused placeholders when true. */
+  isIncome?: boolean;
 }
 
 // ─── Income ───────────────────────────────────────────────────────────────────

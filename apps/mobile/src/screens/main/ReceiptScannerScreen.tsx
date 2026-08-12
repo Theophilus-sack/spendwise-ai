@@ -104,4 +104,11 @@ const styles = StyleSheet.create({
   cancelText:  { color: '#fff', fontSize: Typography.base, fontWeight: Typography.medium },
   captureBtn:  { width: 72, height: 72, borderRadius: 36, backgroundColor: 'rgba(255,255,255,0.3)', alignItems: 'center', justifyContent: 'center', borderWidth: 4, borderColor: '#fff' },
   captureInner:{ width: 56, height: 56, borderRadius: 28, backgroundColor: '#fff' },
+
+  permissionContainer: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md, padding: Spacing.xl },
+  permissionEmoji:     { fontSize: 52 },
+  permissionTitle:     { fontSize: Typography.lg, fontWeight: Typography.bold, color: '#fff', textAlign: 'center' },
+  permissionText:      { fontSize: Typography.base, color: 'rgba(255,255,255,0.75)', textAlign: 'center' },
+  permissionBtn:        { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingHorizontal: Spacing.xl, paddingVertical: Spacing.md, marginTop: Spacing.sm },
+  permissionBtnText:    { color: '#fff', fontSize: Typography.base, fontWeight: Typography.semibold },
 });

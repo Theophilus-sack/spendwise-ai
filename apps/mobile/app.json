@@ -12,14 +12,17 @@
       "resizeMode": "contain",
       "backgroundColor": "#1A6B4A"
     },
-    "assetBundlePatterns": ["**/*"],
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
       "supportsTablet": false,
       "bundleIdentifier": "com.spendwise.ai",
       "infoPlist": {
         "NSCameraUsageDescription": "Used to scan receipts for automatic expense entry",
         "NSFaceIDUsageDescription": "Used to unlock the app securely",
-        "NSPhotoLibraryUsageDescription": "Used to select receipt images"
+        "NSPhotoLibraryUsageDescription": "Used to select receipt images",
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -54,6 +57,19 @@
         "expo-camera",
         {
           "cameraPermission": "Allow SpendWise AI to access your camera to scan receipts."
+        }
+      ],
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow SpendWise AI to access your microphone to record expenses by voice."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "Allow SpendWise AI to access your microphone to record expenses by voice.",
+          "speechRecognitionPermission": "Allow SpendWise AI to use speech recognition to transcribe expenses you say out loud."
         }
       ]
     ],

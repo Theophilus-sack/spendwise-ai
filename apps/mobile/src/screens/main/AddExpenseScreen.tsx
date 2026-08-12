@@ -9,17 +9,17 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
-import { callEdgeFunction } from '@/lib/supabase';
+import { parseTextToDrafts } from '@/lib/nlpParse';
 import { Button, Input } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
-  CATEGORIES, PAYMENT_METHODS, MOBILE_MONEY_TYPES, todayISO, parseExpenseLocally, getCustomCategories,
+  CATEGORIES, PAYMENT_METHODS, MOBILE_MONEY_TYPES, todayISO, getCustomCategories,
 } from '@spendwise/shared';
 import type { ExpenseCategory, PaymentMethod, MobileMoneyType } from '@spendwise/shared';
-import type { AddExpenseProps } from '@/navigation/types';
+import type { AddExpenseProps, AppStackNavProp } from '@/navigation/types';
 
 export function AddExpenseScreen() {
-  const nav    = useNavigation();
+  const nav    = useNavigation<AppStackNavProp>();
   const route  = useRoute<AddExpenseProps['route']>();
   const prefill = route.params?.prefill ?? {};
   const expenseId = route.params?.expenseId;
@@ -47,6 +47,11 @@ export function AddExpenseScreen() {
   const [description,     setDescription]     = useState(existing?.description ?? prefill.description ?? '');
   const [merchantName,    setMerchantName]    = useState(existing?.merchantName ?? prefill.merchantName ?? '');
   const [category,        setCategory]        = useState<ExpenseCategory>(existing?.category ?? prefill.category ?? 'other');
+  // Tracks whether the user actually tapped a category chip, vs. it still
+  // sitting at the untouched default — a deliberate pick is trusted as final
+  // and skips AI (re-)categorization on save; an untouched default still lets
+  // AI fill in a smarter guess than "other".
+  const [categoryTouched, setCategoryTouched] = useState(false);
   const [useCustomCategory, setUseCustomCategory] = useState(false);
   const [customCategory,    setCustomCategory]    = useState('');
   const [paymentMethod,   setPaymentMethod]   = useState<PaymentMethod>(existing?.paymentMethod ?? prefill.paymentMethod ?? 'mobile_money');
@@ -70,33 +75,13 @@ export function AddExpenseScreen() {
     if (!nlpInput.trim()) return;
     setNlpLoading(true);
     try {
-      const result = await callEdgeFunction<{
-        amount?: number; description?: string; merchant_name?: string;
-        category?: ExpenseCategory; date?: string; payment_method?: PaymentMethod;
-        confidence?: number;
-      }>('parse-nlp-expense', { input: nlpInput, today: todayISO() });
-
-      if (result.amount)        setAmount(result.amount.toString());
-      if (result.description)   setDescription(result.description);
-      if (result.merchant_name) setMerchantName(result.merchant_name);
-      if (result.category)      setCategory(result.category);
-      if (result.date)          setDate(result.date);
-      if (result.payment_method) setPaymentMethod(result.payment_method);
-      setMode('form');
-    } catch {
-      // The AI parser is unreachable (offline, or not deployed) — fall back to
-      // a basic on-device guess rather than a dead end. It only reliably gets
-      // amount + category, so the user still needs to check merchant/date.
-      const local = parseExpenseLocally(nlpInput, todayISO());
-      if (local.amount) setAmount(local.amount.toString());
-      setDescription(local.description);
-      setCategory(local.category);
-      setDate(local.date);
-      setMode('form');
-      Alert.alert(
-        'Filled in a rough guess',
-        "Couldn't reach the AI parser, so this is a basic estimate — please check the amount, category, and merchant before saving.",
-      );
+      const drafts = await parseTextToDrafts(nlpInput, expenses, 'quick-add');
+      if (drafts.length === 0) {
+        Alert.alert("Couldn't parse that", 'Try including an amount for each expense, e.g. "coffee 20 cedis, lunch 45".');
+        return;
+      }
+      setNlpInput('');
+      nav.navigate('BatchReview', { drafts });
     } finally {
       setNlpLoading(false);
     }
@@ -129,7 +114,7 @@ export function AddExpenseScreen() {
         await addExpense(user.id, {
           amount: amountNum, currency, category: effectiveCategory, paymentMethod,
           mobileMoneyType, description, merchantName, date, notes,
-        });
+        }, categoryTouched || useCustomCategory);
       }
       nav.goBack();
     } catch (err: any) {
@@ -161,6 +146,10 @@ export function AddExpenseScreen() {
               <Ionicons name="chatbubble-outline" size={16} color={mode === 'nlp' ? Colors.primary : Colors.textSecondary} />
               <Text style={[styles.modeTabText, mode === 'nlp' && styles.modeTabTextActive]}>Quick Add</Text>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.modeTab} onPress={() => nav.navigate('VoiceExpense')}>
+              <Ionicons name="mic-outline" size={16} color={Colors.textSecondary} />
+              <Text style={styles.modeTabText}>Voice</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -169,16 +158,16 @@ export function AddExpenseScreen() {
           {/* NLP mode */}
           {mode === 'nlp' && (
             <View style={styles.nlpContainer}>
-              <Text style={styles.nlpHint}>Describe your expense in plain English 👇</Text>
+              <Text style={styles.nlpHint}>Describe one or more expenses in plain English 👇</Text>
               <TextInput
                 style={styles.nlpInput}
-                placeholder={'e.g. "Spent 80 cedis on Bolt this morning"\n"Bought lunch at KFC, 78 Ghana"\n"Paid DSTV 120 via momo"'}
+                placeholder={'e.g. "Spent 80 cedis on Bolt this morning"\n"Coffee 20 cedis, lunch at KFC 78, paid DSTV 120 via momo"'}
                 value={nlpInput}
                 onChangeText={setNlpInput}
                 multiline
                 placeholderTextColor={Colors.textTertiary}
               />
-              <Button label="Parse & Fill Form ✨" onPress={handleNLPParse} loading={nlpLoading} fullWidth />
+              <Button label="Parse ✨" onPress={handleNLPParse} loading={nlpLoading} fullWidth />
             </View>
           )}
 
@@ -224,7 +213,7 @@ export function AddExpenseScreen() {
                     <TouchableOpacity
                       key={id}
                       style={[styles.chip, !useCustomCategory && category === id && styles.chipSelected]}
-                      onPress={() => { setCategory(id as ExpenseCategory); setUseCustomCategory(false); }}
+                      onPress={() => { setCategory(id as ExpenseCategory); setUseCustomCategory(false); setCategoryTouched(true); }}
                     >
                       <Text style={styles.chipEmoji}>{emoji}</Text>
                       <Text style={[styles.chipText, !useCustomCategory && category === id && styles.chipTextSelected]}>
@@ -236,7 +225,7 @@ export function AddExpenseScreen() {
                     <TouchableOpacity
                       key={c}
                       style={[styles.chip, !useCustomCategory && category === c && styles.chipSelected]}
-                      onPress={() => { setCategory(c as ExpenseCategory); setUseCustomCategory(false); }}
+                      onPress={() => { setCategory(c as ExpenseCategory); setUseCustomCategory(false); setCategoryTouched(true); }}
                     >
                       <Text style={styles.chipEmoji}>✨</Text>
                       <Text style={[styles.chipText, !useCustomCategory && category === c && styles.chipTextSelected]}>
