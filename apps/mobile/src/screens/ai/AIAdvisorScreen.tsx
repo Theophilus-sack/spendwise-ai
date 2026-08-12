@@ -22,6 +22,19 @@ const QUICK_PROMPTS = [
   'What\'s my biggest spending problem?',
 ];
 
+// Claude's replies use markdown-style **emphasis** — non-technical users
+// shouldn't have to see literal asterisks in a chat bubble, so this turns
+// **text** into actually-bold text instead. Nested <Text> inherits the
+// parent's color/size, so only fontWeight needs overriding on the bold runs.
+function formatBoldSegments(content: string): React.ReactNode[] {
+  return content.split(/(\*\*[^*]+\*\*)/g).map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <Text key={i} style={styles.bold}>{part.slice(2, -2)}</Text>;
+    }
+    return part;
+  });
+}
+
 const WELCOME_MESSAGE: ChatMessage = {
   role: 'assistant',
   content: "Hi! I'm your AI financial advisor. I have access to your complete spending history, budgets, and goals. Ask me anything about your finances — I'll give you specific, personalised advice based on your actual data. 💸",
@@ -127,7 +140,7 @@ export function AIAdvisorScreen() {
         )}
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
           <Text style={[styles.bubbleText, isUser && styles.bubbleTextUser]}>
-            {item.content}
+            {formatBoldSegments(item.content)}
           </Text>
           {item.actions && item.actions.length > 0 && (
             <View style={styles.actions}>
@@ -236,6 +249,7 @@ const styles = StyleSheet.create({
   bubbleUser:       { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
   bubbleText:       { fontSize: Typography.base, color: Colors.text, lineHeight: 22 },
   bubbleTextUser:   { color: Colors.textInverse },
+  bold:             { fontWeight: Typography.bold },
 
   actions:       { marginTop: Spacing.sm, gap: Spacing.xs },
   actionBtn:     { backgroundColor: Colors.primary + '18', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderWidth: 1, borderColor: Colors.primary + '30' },
