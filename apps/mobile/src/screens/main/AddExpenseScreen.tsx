@@ -9,6 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
+import { useDraftStore }   from '@/store/draftStore';
 import { parseTextToDrafts } from '@/lib/nlpParse';
 import { Button, Input } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
@@ -27,6 +28,7 @@ export function AddExpenseScreen() {
   const { user, profile } = useAuthStore();
   const { expenses, addExpense, updateExpense } = useExpenseStore();
   const { budgets } = useBudgetStore();
+  const { quickAddText: nlpInput, setQuickAddText: setNlpInput } = useDraftStore();
 
   // Custom categories typed elsewhere (on this or any other expense, or on a
   // budget) show up here as real selectable chips instead of always
@@ -58,7 +60,6 @@ export function AddExpenseScreen() {
   const [mobileMoneyType, setMobileMoneyType] = useState<MobileMoneyType | undefined>(existing?.mobileMoneyType ?? prefill.mobileMoneyType);
   const [date,            setDate]            = useState(existing?.date ?? prefill.date ?? todayISO());
   const [notes,           setNotes]           = useState(existing?.notes ?? '');
-  const [nlpInput,        setNlpInput]        = useState('');
   const [loading,         setLoading]         = useState(false);
   const [mode,            setMode]            = useState<'form' | 'nlp'>('form');
   const [nlpLoading,      setNlpLoading]      = useState(false);
