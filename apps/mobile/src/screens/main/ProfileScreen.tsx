@@ -36,7 +36,7 @@ export function ProfileScreen() {
           </View>
           <View>
             <Text style={styles.name}>{profile?.fullName ?? 'User'}</Text>
-            <Text style={styles.currency}>💰 {profile?.currency ?? 'GHS'} · {profile?.spendingPersonality ?? 'balanced'}</Text>
+            <Text style={styles.currency}>{profile?.currency ?? 'GHS'} · {profile?.spendingPersonality ?? 'balanced'}</Text>
           </View>
         </View>
 

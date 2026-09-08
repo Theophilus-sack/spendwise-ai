@@ -3,6 +3,7 @@ import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { Button, Input } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius } from '@/theme';
@@ -33,7 +34,9 @@ export function LoginScreen() {
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         {/* Header */}
         <View style={styles.header}>
-          <Text style={styles.emoji}>💸</Text>
+          <View style={styles.iconBg}>
+            <Ionicons name="wallet-outline" size={32} color={Colors.primary} />
+          </View>
           <Text style={styles.title}>Welcome back</Text>
           <Text style={styles.subtitle}>Sign in to continue tracking your finances</Text>
         </View>
@@ -87,7 +90,7 @@ const styles = StyleSheet.create({
   flex:      { flex: 1, backgroundColor: Colors.background },
   container: { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center', gap: Spacing.xl },
   header:    { alignItems: 'center', gap: Spacing.sm },
-  emoji:     { fontSize: 52 },
+  iconBg:    { width: 72, height: 72, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs },
   title:     { fontSize: Typography.xxl, fontWeight: Typography.bold, color: Colors.text },
   subtitle:  { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center' },
   form:      { gap: Spacing.md, backgroundColor: Colors.surface, padding: Spacing.lg, borderRadius: Radius.xl },

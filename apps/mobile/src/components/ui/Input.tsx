@@ -12,14 +12,15 @@ interface InputProps extends TextInputProps {
   hint?: string;
   leftIcon?: keyof typeof Ionicons.glyphMap;
   rightIcon?: keyof typeof Ionicons.glyphMap;
+  rightIconAccessibilityLabel?: string;
   onRightIconPress?: () => void;
   containerStyle?: ViewStyle;
   isPassword?: boolean;
 }
 
 export function Input({
-  label, error, hint, leftIcon, rightIcon, onRightIconPress,
-  containerStyle, isPassword = false, ...props
+  label, error, hint, leftIcon, rightIcon, rightIconAccessibilityLabel, onRightIconPress,
+  containerStyle, isPassword = false, accessibilityLabel, ...props
 }: InputProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [focused, setFocused] = useState(false);
@@ -43,20 +44,32 @@ export function Input({
           secureTextEntry={isPassword && !showPassword}
           onFocus={() => setFocused(true)}
           onBlur={() => setFocused(false)}
+          accessibilityLabel={accessibilityLabel ?? label ?? props.placeholder}
+          accessibilityHint={hint}
           {...props}
         />
         {isPassword && (
-          <TouchableOpacity onPress={() => setShowPassword(s => !s)} style={styles.rightIcon}>
+          <TouchableOpacity
+            onPress={() => setShowPassword(s => !s)}
+            style={styles.rightIcon}
+            accessibilityRole="button"
+            accessibilityLabel={showPassword ? 'Hide password' : 'Show password'}
+          >
             <Ionicons name={secureIcon} size={18} color={Colors.textSecondary} />
           </TouchableOpacity>
         )}
         {rightIcon && !isPassword && (
-          <TouchableOpacity onPress={onRightIconPress} style={styles.rightIcon}>
+          <TouchableOpacity
+            onPress={onRightIconPress}
+            style={styles.rightIcon}
+            accessibilityRole="button"
+            accessibilityLabel={rightIconAccessibilityLabel}
+          >
             <Ionicons name={rightIcon} size={18} color={Colors.textSecondary} />
           </TouchableOpacity>
         )}
       </View>
-      {error && <Text style={styles.error}>{error}</Text>}
+      {error && <Text style={styles.error} accessibilityLiveRegion="polite">{error}</Text>}
       {hint && !error && <Text style={styles.hint}>{hint}</Text>}
     </View>
   );

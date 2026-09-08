@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card } from '@/components/ui';
+import { Card, Badge } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius } from '@/theme';
 import { BADGES } from '@spendwise/shared';
 import type { BadgeId } from '@spendwise/shared';
@@ -96,11 +96,7 @@ export function AchievementsScreen() {
               <Text style={styles.badgeEmoji}>{badge.emoji}</Text>
               <Text style={styles.badgeName}>{badge.name}</Text>
               <Text style={styles.badgeDesc} numberOfLines={2}>{badge.description}</Text>
-              <View style={[styles.tag, isUnlocked && styles.tagUnlocked]}>
-                <Text style={[styles.tagText, isUnlocked && styles.tagTextUnlocked]}>
-                  {isUnlocked ? 'Unlocked' : 'Locked'}
-                </Text>
-              </View>
+              <Badge label={isUnlocked ? 'Unlocked' : 'Locked'} variant={isUnlocked ? 'success' : 'neutral'} />
             </Card>
           );
         }}
@@ -120,8 +116,4 @@ const styles = StyleSheet.create({
   badgeEmoji:   { fontSize: 36 },
   badgeName:    { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.text, textAlign: 'center' },
   badgeDesc:    { fontSize: Typography.xs, color: Colors.textSecondary, textAlign: 'center' },
-  tag:             { backgroundColor: Colors.border, borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
-  tagUnlocked:     { backgroundColor: Colors.primaryLight },
-  tagText:         { fontSize: Typography.xs, color: Colors.textSecondary, fontWeight: Typography.semibold, textTransform: 'uppercase' },
-  tagTextUnlocked: { color: Colors.textInverse },
 });

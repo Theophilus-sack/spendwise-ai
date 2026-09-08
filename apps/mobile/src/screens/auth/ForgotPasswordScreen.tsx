@@ -55,7 +55,9 @@ export function ForgotPasswordScreen() {
         </TouchableOpacity>
 
         <View style={styles.header}>
-          <Text style={styles.emoji}>{sent ? '📬' : '🔑'}</Text>
+          <View style={styles.iconBg}>
+            <Ionicons name={sent ? 'mail-outline' : 'key-outline'} size={32} color={Colors.primary} />
+          </View>
           <Text style={styles.title}>{sent ? 'Check your inbox' : 'Reset your password'}</Text>
           <Text style={styles.subtitle}>
             {sent
@@ -96,7 +98,7 @@ const styles = StyleSheet.create({
   container: { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center', gap: Spacing.xl },
   backBtn:   { position: 'absolute', top: Spacing.lg, left: Spacing.lg, zIndex: 10 },
   header:    { alignItems: 'center', gap: Spacing.sm },
-  emoji:     { fontSize: 52 },
+  iconBg:    { width: 72, height: 72, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs },
   title:     { fontSize: Typography.xxl, fontWeight: Typography.bold, color: Colors.text, textAlign: 'center' },
   subtitle:  { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
   form:      { gap: Spacing.md, backgroundColor: Colors.surface, padding: Spacing.lg, borderRadius: Radius.xl },

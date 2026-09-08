@@ -109,7 +109,7 @@ export function VoiceExpenseScreen() {
     <SafeAreaView style={styles.safe} edges={['left', 'right', 'bottom']}>
       <View style={styles.body}>
         <Text style={styles.hint}>
-          {isRecording ? 'Listening…' : 'Tap the mic and say your expense(s) 👇'}
+          {isRecording ? 'Listening…' : 'Tap the mic and say your expense(s)'}
         </Text>
         <Text style={styles.hintSmall}>e.g. "Coffee 20 cedis, lunch at Papaye 45, Bolt 15 cedis"</Text>
 
@@ -127,7 +127,7 @@ export function VoiceExpenseScreen() {
         </TouchableOpacity>
 
         <Button
-          label="Parse ✨"
+          label="Parse"
           onPress={handleParse}
           loading={parsing}
           disabled={!transcript.trim() || isRecording}

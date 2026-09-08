@@ -5,10 +5,10 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/store/authStore';
 import { useGoalStore } from '@/store/goalStore';
-import { Card }         from '@/components/ui';
+import { Card, EmptyState } from '@/components/ui';
+import { ConceptIcons } from '@/lib/iconMap';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import { formatCurrency, generateUUID } from '@spendwise/shared';
 import type { Goal } from '@spendwise/shared';
@@ -197,7 +197,7 @@ export function GoalsScreen() {
 
         {/* ── Overall progress ── */}
         {activeGoals.length > 0 && (
-          <LinearGradient colors={[Colors.primaryDark, Colors.primary]} style={styles.summaryCard} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
+          <View style={styles.summaryCard}>
             <Text style={styles.summaryLabel}>Total progress across all goals</Text>
             <Text style={styles.summaryAmount}>{formatCurrency(totalSaved, currency)}</Text>
             <Text style={styles.summaryOf}>of {formatCurrency(totalTarget, currency)}</Text>
@@ -205,7 +205,7 @@ export function GoalsScreen() {
               <View style={[styles.summaryFill, { width: `${overallPct}%` as any }]} />
             </View>
             <Text style={styles.summaryPct}>{overallPct.toFixed(0)}% of total target saved</Text>
-          </LinearGradient>
+          </View>
         )}
 
         {/* ── Savings reminder (pulsing) ── */}
@@ -213,13 +213,15 @@ export function GoalsScreen() {
           <Animated.View style={{ transform: [{ scale: reminderPulse }] }}>
             <Card style={styles.reminderCard}>
               <View style={styles.reminderLeft}>
-                <Text style={styles.reminderEmoji}>🔔</Text>
+                <View style={styles.reminderIconBg}>
+                  <Ionicons name="notifications-outline" size={18} color={Colors.primary} />
+                </View>
                 <View>
                   <Text style={styles.reminderTitle}>Savings Reminder</Text>
                   <Text style={styles.reminderBody}>
                     {nearestDeadline && daysLeft !== null
-                      ? `"${nearestDeadline.title}" deadline in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} — add to it today!`
-                      : `Don't forget to contribute to your goals today. Small amounts add up!`}
+                      ? `"${nearestDeadline.title}" deadline in ${daysLeft} day${daysLeft !== 1 ? 's' : ''} — add to it today`
+                      : `Don't forget to contribute to your goals today. Small amounts add up.`}
                   </Text>
                 </View>
               </View>
@@ -235,14 +237,12 @@ export function GoalsScreen() {
 
         {/* ── Active goals ── */}
         {activeGoals.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>🎯</Text>
-            <Text style={styles.emptyTitle}>No active goals</Text>
-            <Text style={styles.emptySub}>Set a savings goal — a new phone, a trip, an emergency fund — and track your progress here.</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={openAddModal}>
-              <Text style={styles.emptyBtnText}>+ Create first goal</Text>
-            </TouchableOpacity>
-          </Card>
+          <EmptyState
+            icon={<Ionicons name={ConceptIcons.goals} size={28} color={Colors.primary} />}
+            title="No active goals"
+            description="Set a savings goal — a new phone, a trip, an emergency fund — and track your progress here."
+            action={{ label: 'Create first goal', onPress: openAddModal }}
+          />
         ) : (
           <>
             <Text style={styles.sectionTitle}>Active Goals</Text>
@@ -263,7 +263,7 @@ export function GoalsScreen() {
                         <Text style={styles.goalTitle}>{goal.title}</Text>
                         {daysTo !== null && (
                           <Text style={[styles.goalDeadline, { color: daysTo < 7 ? Colors.danger : Colors.textSecondary }]}>
-                            {daysTo === 0 ? 'Due today!' : `${daysTo} days left`}
+                            {daysTo === 0 ? 'Due today' : `${daysTo} days left`}
                           </Text>
                         )}
                       </View>
@@ -306,14 +306,14 @@ export function GoalsScreen() {
         {/* ── Completed goals ── */}
         {completedGoals.length > 0 && (
           <>
-            <Text style={styles.sectionTitle}>Completed 🎉</Text>
+            <Text style={styles.sectionTitle}>Completed</Text>
             {completedGoals.map(goal => (
               <Card key={goal.id} style={[styles.goalCard, styles.goalCardDone]}>
                 <View style={styles.goalHeader}>
                   <Text style={styles.goalEmoji}>{goal.emoji}</Text>
                   <View style={styles.goalInfo}>
                     <Text style={styles.goalTitle}>{goal.title}</Text>
-                    <Text style={{ fontSize: Typography.xs, color: Colors.success, fontWeight: Typography.semibold }}>Goal reached!</Text>
+                    <Text style={{ fontSize: Typography.xs, color: Colors.success, fontWeight: Typography.semibold }}>Goal reached</Text>
                   </View>
                   <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
                   <TouchableOpacity onPress={() => confirmDeleteGoal(goal)} style={styles.deleteBtn} hitSlop={8}>
@@ -427,17 +427,20 @@ const styles = StyleSheet.create({
   addBtn:     { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, ...Shadows.sm },
   addBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.semibold },
 
-  summaryCard:    { borderRadius: Radius.xl, padding: Spacing.lg, alignItems: 'center', gap: Spacing.xs, ...Shadows.primary },
-  summaryLabel:   { fontSize: Typography.sm, color: 'rgba(255,255,255,0.75)' },
-  summaryAmount:  { fontSize: Typography.xxxl, fontWeight: Typography.bold, color: '#fff' },
-  summaryOf:      { fontSize: Typography.sm, color: 'rgba(255,255,255,0.65)' },
-  summaryTrack:   { width: '100%', height: 8, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.25)', overflow: 'hidden' },
-  summaryFill:    { height: 8, borderRadius: Radius.full, backgroundColor: '#fff' },
-  summaryPct:     { fontSize: Typography.xs, color: 'rgba(255,255,255,0.75)', fontWeight: Typography.medium },
+  summaryCard:    {
+    borderRadius: Radius.xl, padding: Spacing.lg, alignItems: 'center', gap: Spacing.xs,
+    backgroundColor: Colors.surface, borderLeftWidth: 4, borderLeftColor: Colors.primary, ...Shadows.sm,
+  },
+  summaryLabel:   { fontSize: Typography.sm, color: Colors.textSecondary },
+  summaryAmount:  { fontSize: Typography.xxxl, fontWeight: Typography.bold, color: Colors.text },
+  summaryOf:      { fontSize: Typography.sm, color: Colors.textTertiary },
+  summaryTrack:   { width: '100%', height: 8, borderRadius: Radius.full, backgroundColor: Colors.border, overflow: 'hidden' },
+  summaryFill:    { height: 8, borderRadius: Radius.full, backgroundColor: Colors.primary },
+  summaryPct:     { fontSize: Typography.xs, color: Colors.primary, fontWeight: Typography.medium },
 
   reminderCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderColor: Colors.primary + '30', borderWidth: 1, backgroundColor: Colors.primary + '06' },
   reminderLeft: { flex: 1, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm },
-  reminderEmoji:{ fontSize: 24 },
+  reminderIconBg:{ width: 36, height: 36, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
   reminderTitle:{ fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.primary },
   reminderBody: { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: 2, lineHeight: 18, flex: 1, flexWrap: 'wrap' },
   reminderBtn:  { backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full },
@@ -469,12 +472,6 @@ const styles = StyleSheet.create({
   contributeBtn:     { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.xs, backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: Spacing.sm },
   contributeBtnText: { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.semibold },
 
-  emptyCard:  { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xl },
-  emptyEmoji: { fontSize: 52 },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
-  emptySub:   { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
-  emptyBtn:   { backgroundColor: Colors.primary, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.full, marginTop: Spacing.sm },
-  emptyBtnText: { color: '#fff', fontWeight: Typography.semibold },
 
   modal:        { flex: 1, backgroundColor: Colors.background },
   modalHeader:  { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: Spacing.base, borderBottomWidth: 1, borderBottomColor: Colors.border },

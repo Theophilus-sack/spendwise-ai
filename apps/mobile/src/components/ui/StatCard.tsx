@@ -23,7 +23,12 @@ export function StatCard({
   const trendIcon  = trend === 'up' ? 'trending-up' : trend === 'down' ? 'trending-down' : 'remove';
 
   return (
-    <Card style={[styles.card, style]}>
+    <Card
+      style={[styles.card, style]}
+      accessible
+      accessibilityRole="summary"
+      accessibilityLabel={[label, value, trendValue, subtitle].filter(Boolean).join(', ')}
+    >
       <View style={styles.header}>
         <Text style={styles.label} numberOfLines={1}>{label}</Text>
         {icon && (

@@ -11,6 +11,7 @@ import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { callEdgeFunction, supabase } from '@/lib/supabase';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
+import { ConceptIcons } from '@/lib/iconMap';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import type { ChatMessage, AIAdvisorResponse } from '@spendwise/shared';
 import type { AIAdvisorProps } from '@/navigation/types';
@@ -37,7 +38,7 @@ function formatBoldSegments(content: string): React.ReactNode[] {
 
 const WELCOME_MESSAGE: ChatMessage = {
   role: 'assistant',
-  content: "Hi! I'm your AI financial advisor. I have access to your complete spending history, budgets, and goals. Ask me anything about your finances — I'll give you specific, personalised advice based on your actual data. 💸",
+  content: "Hi! I'm your AI financial advisor. I have access to your complete spending history, budgets, and goals. Ask me anything about your finances — I'll give you specific, personalised advice based on your actual data.",
   timestamp: new Date().toISOString(),
 };
 
@@ -135,7 +136,7 @@ export function AIAdvisorScreen() {
       <View style={[styles.messageRow, isUser && styles.messageRowUser]}>
         {!isUser && (
           <View style={styles.avatar}>
-            <Text style={styles.avatarEmoji}>🤖</Text>
+            <Ionicons name={ConceptIcons.ai} size={16} color={Colors.primary} />
           </View>
         )}
         <View style={[styles.bubble, isUser ? styles.bubbleUser : styles.bubbleAssistant]}>
@@ -181,7 +182,7 @@ export function AIAdvisorScreen() {
             // the visual bottom, which is where the typing indicator belongs.
             ListHeaderComponent={loading ? (
               <View style={styles.typingIndicator}>
-                <View style={styles.avatar}><Text style={styles.avatarEmoji}>🤖</Text></View>
+                <View style={styles.avatar}><Ionicons name={ConceptIcons.ai} size={16} color={Colors.primary} /></View>
                 <View style={styles.bubbleAssistant}>
                   <ActivityIndicator size="small" color={Colors.primary} />
                 </View>
@@ -242,7 +243,6 @@ const styles = StyleSheet.create({
   messageRowUser: { flexDirection: 'row-reverse' },
 
   avatar:      { width: 32, height: 32, borderRadius: Radius.full, backgroundColor: Colors.primary + '18', alignItems: 'center', justifyContent: 'center' },
-  avatarEmoji: { fontSize: 16 },
 
   bubble:           { maxWidth: '80%', borderRadius: Radius.lg, padding: Spacing.md, ...Shadows.sm },
   bubbleAssistant:  { backgroundColor: Colors.surface, borderBottomLeftRadius: 4 },

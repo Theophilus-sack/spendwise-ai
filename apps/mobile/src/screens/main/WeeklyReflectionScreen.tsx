@@ -12,7 +12,7 @@ import { useBudgetStore } from '@/store/budgetStore';
 import { useDisciplineStore } from '@/store/disciplineStore';
 import { useWeeklyReflectionStore } from '@/store/weeklyReflectionStore';
 import type { FollowThrough, SubmitReflectionResult } from '@/store/weeklyReflectionStore';
-import { Card, Button } from '@/components/ui';
+import { Card, Button, Chip } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import { CATEGORY_LIST, getCategoryEmoji, getCategoryLabel, SPENDING_ALTERNATIVES, formatCurrency } from '@spendwise/shared';
 import type { AppStackNavProp } from '@/navigation/types';
@@ -77,7 +77,7 @@ export function WeeklyReflectionScreen() {
   const scoreContext = () => {
     if (score === null) return "Let's build your first week of data.";
     const gradeText = `${score}/100 · Grade ${grade}`;
-    if (trend === 'improving') return `${gradeText} — trending up from last week 📈`;
+    if (trend === 'improving') return `${gradeText} — trending up from last week`;
     if (trend === 'declining') return `${gradeText} — a bit softer than last week`;
     return `${gradeText} — holding steady`;
   };
@@ -113,7 +113,9 @@ export function WeeklyReflectionScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <ScrollView contentContainerStyle={styles.resultContent}>
-          <Text style={styles.resultEmoji}>✅</Text>
+          <View style={styles.resultIconBg}>
+            <Ionicons name="checkmark-circle" size={40} color={Colors.success} />
+          </View>
           <Text style={styles.resultTitle}>Reflection saved</Text>
           {result.reflectionBonus > 0 && (
             <View style={styles.bonusChip}>
@@ -144,7 +146,8 @@ export function WeeklyReflectionScreen() {
           </View>
           {streak > 0 && (
             <View style={styles.streakChip}>
-              <Text style={styles.streakChipText}>🔥 {streak}-week streak</Text>
+              <Ionicons name="flame" size={12} color={Colors.accentDark} />
+              <Text style={styles.streakChipText}>{streak}-week streak</Text>
             </View>
           )}
         </View>
@@ -161,15 +164,13 @@ export function WeeklyReflectionScreen() {
               <Text style={[styles.fieldLabel, { marginTop: Spacing.sm }]}>How did it go?</Text>
               <View style={styles.chipRow}>
                 {(['yes', 'partially', 'no'] as FollowThrough[]).map(v => (
-                  <TouchableOpacity
+                  <Chip
                     key={v}
-                    style={[styles.chip, followThrough === v && styles.chipActive]}
+                    label={v === 'yes' ? 'Yes' : v === 'partially' ? 'Partially' : 'No'}
+                    active={followThrough === v}
                     onPress={() => setFollowThrough(v)}
-                  >
-                    <Text style={[styles.chipText, followThrough === v && styles.chipTextActive]}>
-                      {v === 'yes' ? 'Yes' : v === 'partially' ? 'Partially' : 'No'}
-                    </Text>
-                  </TouchableOpacity>
+                    style={styles.equalChip}
+                  />
                 ))}
               </View>
             </Card>
@@ -206,18 +207,18 @@ export function WeeklyReflectionScreen() {
             <Card style={styles.card}>
               <Text style={styles.questionNum}>2. Want to adjust your {getCategoryLabel(exceededCategory as any)} budget for next week?</Text>
               <View style={styles.chipRow}>
-                <TouchableOpacity
-                  style={[styles.chip, adjustNextWeek === true && styles.chipActive]}
+                <Chip
+                  label="Yes, adjust"
+                  active={adjustNextWeek === true}
                   onPress={() => setAdjustNextWeek(true)}
-                >
-                  <Text style={[styles.chipText, adjustNextWeek === true && styles.chipTextActive]}>Yes, adjust</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.chip, adjustNextWeek === false && styles.chipActive]}
+                  style={styles.equalChip}
+                />
+                <Chip
+                  label="Keep the same"
+                  active={adjustNextWeek === false}
                   onPress={() => setAdjustNextWeek(false)}
-                >
-                  <Text style={[styles.chipText, adjustNextWeek === false && styles.chipTextActive]}>Keep the same</Text>
-                </TouchableOpacity>
+                  style={styles.equalChip}
+                />
               </View>
               {adjustNextWeek && exceededStatus && (
                 <View style={styles.quickAdjust}>
@@ -282,7 +283,7 @@ export function WeeklyReflectionScreen() {
             </View>
           </Card>
 
-          <Button label="Save Reflection ✓" onPress={handleSubmit} loading={submitting} fullWidth size="lg" />
+          <Button label="Save Reflection" onPress={handleSubmit} loading={submitting} fullWidth size="lg" />
         </ScrollView>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -296,7 +297,7 @@ const styles = StyleSheet.create({
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', padding: Spacing.base, borderBottomWidth: 1, borderBottomColor: Colors.border },
   headerTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
   headerSub:   { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: 2 },
-  streakChip:  { backgroundColor: Colors.accent + '18', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  streakChip:  { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.accent + '18', borderRadius: Radius.full, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
   streakChipText: { fontSize: Typography.xs, fontWeight: Typography.bold, color: Colors.accentDark },
 
   content: { padding: Spacing.base, gap: Spacing.base, paddingBottom: Spacing.xxxl },
@@ -314,8 +315,8 @@ const styles = StyleSheet.create({
   chipGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chipRow:  { flexDirection: 'row', gap: Spacing.sm },
   catChip:  { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surfaceAlt },
-  chip:     { flex: 1, alignItems: 'center', paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderRadius: Radius.full, borderWidth: 1.5, borderColor: Colors.border, backgroundColor: Colors.surfaceAlt },
   chipActive: { borderColor: Colors.primary, backgroundColor: Colors.primary + '18' },
+  equalChip: { flex: 1 },
   chipEmoji: { fontSize: 14 },
   chipText:  { fontSize: Typography.sm, color: Colors.textSecondary, fontWeight: Typography.medium },
   chipTextActive: { color: Colors.primary, fontWeight: Typography.semibold },
@@ -340,7 +341,7 @@ const styles = StyleSheet.create({
 
   // Result view
   resultContent: { padding: Spacing.xl, alignItems: 'center', gap: Spacing.md, paddingTop: Spacing.xxxl },
-  resultEmoji: { fontSize: 48 },
+  resultIconBg: { width: 72, height: 72, borderRadius: Radius.full, backgroundColor: Colors.success + '12', alignItems: 'center', justifyContent: 'center' },
   resultTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.text },
   bonusChip: { backgroundColor: Colors.success + '18', borderRadius: Radius.full, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   bonusChipText: { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.success },

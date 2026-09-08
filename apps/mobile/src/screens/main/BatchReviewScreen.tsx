@@ -9,7 +9,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useIncomeStore }  from '@/store/incomeStore';
-import { Card, Button, Input } from '@/components/ui';
+import { Card, Button, Input, EmptyState } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
   CATEGORIES, PAYMENT_METHODS, getCategoryEmoji, getCategoryLabel,
@@ -19,9 +19,9 @@ import type { DraftExpense, ExpenseCategory, PaymentMethod } from '@spendwise/sh
 import type { BatchReviewProps } from '@/navigation/types';
 
 const SOURCE_LABEL: Record<DraftExpense['source'], string> = {
-  'quick-add': '✨ Quick Add',
-  'voice':     '🎙️ Voice',
-  'statement': '🧾 Statement',
+  'quick-add': 'Quick Add',
+  'voice':     'Voice',
+  'statement': 'Statement',
 };
 
 export function BatchReviewScreen() {
@@ -162,7 +162,7 @@ export function BatchReviewScreen() {
       );
     } else {
       Alert.alert(
-        'Added! ✓',
+        'Added',
         `${addedSummary} added.`,
         [{ text: 'OK', onPress: () => nav.goBack() }],
       );
@@ -223,10 +223,10 @@ export function BatchReviewScreen() {
           </Card>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>🗒️</Text>
-            <Text style={styles.emptyTitle}>Nothing left to review</Text>
-          </View>
+          <EmptyState
+            icon={<Ionicons name="checkmark-done-outline" size={28} color={Colors.primary} />}
+            title="Nothing left to review"
+          />
         }
       />
 
@@ -294,7 +294,7 @@ export function BatchReviewScreen() {
                     style={[styles.chip, editUseCustomCategory && editCustomCategory === c && styles.chipSelected]}
                     onPress={() => { setEditUseCustomCategory(true); setEditCustomCategory(c); }}
                   >
-                    <Text style={styles.chipEmoji}>✨</Text>
+                    <Ionicons name="pricetag-outline" size={14} color={Colors.textSecondary} />
                     <Text style={[styles.chipText, editUseCustomCategory && editCustomCategory === c && styles.chipTextSelected]}>
                       {c}
                     </Text>
@@ -304,7 +304,7 @@ export function BatchReviewScreen() {
                   style={[styles.chip, editUseCustomCategory && !customCategoryOptions.includes(editCustomCategory) && styles.chipSelected]}
                   onPress={() => { setEditUseCustomCategory(true); setEditCustomCategory(''); }}
                 >
-                  <Text style={styles.chipEmoji}>✏️</Text>
+                  <Ionicons name="create-outline" size={14} color={Colors.textSecondary} />
                   <Text style={styles.chipText}>Custom</Text>
                 </TouchableOpacity>
               </View>
@@ -363,10 +363,6 @@ const styles = StyleSheet.create({
   rowAmount: { fontSize: Typography.base, fontWeight: Typography.bold, color: Colors.text },
   rowAmountIncome: { color: Colors.success },
   rowBtn:    { padding: Spacing.xs },
-
-  empty:      { alignItems: 'center', paddingVertical: Spacing.xxxl, gap: Spacing.md },
-  emptyEmoji: { fontSize: 52 },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
 
   footer: { padding: Spacing.base, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
 

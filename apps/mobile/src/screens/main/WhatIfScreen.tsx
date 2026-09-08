@@ -11,6 +11,7 @@ import { useAuthStore }   from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
 import { Card, Button }    from '@/components/ui';
+import { ConceptIcons } from '@/lib/iconMap';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import { formatCurrency, getCategoryEmoji, getCategoryLabel, SPENDING_ALTERNATIVES, generateUUID } from '@spendwise/shared';
 import type { AppStackNavProp } from '@/navigation/types';
@@ -145,7 +146,9 @@ export function WhatIfScreen() {
       <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
         {/* ── Header ── */}
         <View style={styles.header}>
-          <Text style={styles.emoji}>🔮</Text>
+          <View style={styles.iconBg}>
+            <Ionicons name="git-compare-outline" size={28} color={Colors.primary} />
+          </View>
           <View style={styles.headerText}>
             <Text style={styles.title}>What-If Simulator</Text>
             <Text style={styles.subtitle}>See how small changes impact your balance</Text>
@@ -271,7 +274,9 @@ export function WhatIfScreen() {
             activeOpacity={0.88}
           >
             <LinearGradient colors={['#1A1A2E', '#2D1B69']} style={styles.aiCoachInner} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Text style={styles.aiCoachEmoji}>🤖</Text>
+              <View style={styles.aiCoachIconBg}>
+                <Ionicons name={ConceptIcons.ai} size={22} color="#fff" />
+              </View>
               <View style={styles.aiCoachText}>
                 <Text style={styles.aiCoachTitle}>Ask AI Coach for personalised advice</Text>
                 <Text style={styles.aiCoachSub}>Get location-aware affordable alternatives and a tailored plan to cut costs</Text>
@@ -297,7 +302,7 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.base, gap: Spacing.base, paddingBottom: Spacing.xxxl },
 
   header:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  emoji:      { fontSize: 40 },
+  iconBg:     { width: 56, height: 56, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
   headerText: { flex: 1 },
   title:      { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.text },
   subtitle:   { fontSize: Typography.sm, color: Colors.textSecondary, marginTop: 2 },
@@ -344,7 +349,7 @@ const styles = StyleSheet.create({
 
   aiCoachBtn:   { borderRadius: Radius.xl, overflow: 'hidden', ...Shadows.lg },
   aiCoachInner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.base },
-  aiCoachEmoji: { fontSize: 32 },
+  aiCoachIconBg: { width: 44, height: 44, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
   aiCoachText:  { flex: 1 },
   aiCoachTitle: { fontSize: Typography.base, fontWeight: Typography.bold, color: '#fff' },
   aiCoachSub:   { fontSize: Typography.xs, color: 'rgba(255,255,255,0.7)', marginTop: 2, lineHeight: 18 },

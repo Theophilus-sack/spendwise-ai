@@ -159,7 +159,7 @@ export function AddExpenseScreen() {
           {/* NLP mode */}
           {mode === 'nlp' && (
             <View style={styles.nlpContainer}>
-              <Text style={styles.nlpHint}>Describe one or more expenses in plain English 👇</Text>
+              <Text style={styles.nlpHint}>Describe one or more expenses in plain English</Text>
               <TextInput
                 style={styles.nlpInput}
                 placeholder={'e.g. "Spent 80 cedis on Bolt this morning"\n"Coffee 20 cedis, lunch at KFC 78, paid DSTV 120 via momo"'}
@@ -168,7 +168,7 @@ export function AddExpenseScreen() {
                 multiline
                 placeholderTextColor={Colors.textTertiary}
               />
-              <Button label="Parse ✨" onPress={handleNLPParse} loading={nlpLoading} fullWidth />
+              <Button label="Parse" onPress={handleNLPParse} loading={nlpLoading} fullWidth />
             </View>
           )}
 
@@ -228,7 +228,7 @@ export function AddExpenseScreen() {
                       style={[styles.chip, !useCustomCategory && category === c && styles.chipSelected]}
                       onPress={() => { setCategory(c as ExpenseCategory); setUseCustomCategory(false); setCategoryTouched(true); }}
                     >
-                      <Text style={styles.chipEmoji}>✨</Text>
+                      <Ionicons name="pricetag-outline" size={14} color={Colors.textSecondary} />
                       <Text style={[styles.chipText, !useCustomCategory && category === c && styles.chipTextSelected]}>
                         {c}
                       </Text>
@@ -238,7 +238,7 @@ export function AddExpenseScreen() {
                     style={[styles.chip, useCustomCategory && styles.chipSelected]}
                     onPress={() => setUseCustomCategory(true)}
                   >
-                    <Text style={styles.chipEmoji}>✏️</Text>
+                    <Ionicons name="create-outline" size={14} color={Colors.textSecondary} />
                     <Text style={[styles.chipText, useCustomCategory && styles.chipTextSelected]}>
                       Custom
                     </Text>

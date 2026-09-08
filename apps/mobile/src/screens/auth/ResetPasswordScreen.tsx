@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, KeyboardAvoidingView, Platform,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { supabase } from '@/lib/supabase';
 import { useAuthStore } from '@/store/authStore';
 import { Button, Input } from '@/components/ui';
@@ -49,7 +50,9 @@ export function ResetPasswordScreen() {
     <KeyboardAvoidingView style={styles.flex} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
       <ScrollView contentContainerStyle={styles.container} keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <Text style={styles.emoji}>🔒</Text>
+          <View style={styles.iconBg}>
+            <Ionicons name="lock-closed-outline" size={32} color={Colors.primary} />
+          </View>
           <Text style={styles.title}>Set a new password</Text>
           <Text style={styles.subtitle}>Choose a new password for your account.</Text>
         </View>
@@ -85,7 +88,7 @@ const styles = StyleSheet.create({
   flex:      { flex: 1, backgroundColor: Colors.background },
   container: { flexGrow: 1, padding: Spacing.lg, justifyContent: 'center', gap: Spacing.xl },
   header:    { alignItems: 'center', gap: Spacing.sm },
-  emoji:     { fontSize: 52 },
+  iconBg:    { width: 72, height: 72, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', marginBottom: Spacing.xs },
   title:     { fontSize: Typography.xxl, fontWeight: Typography.bold, color: Colors.text, textAlign: 'center' },
   subtitle:  { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center' },
   form:      { gap: Spacing.md, backgroundColor: Colors.surface, padding: Spacing.lg, borderRadius: Radius.xl },

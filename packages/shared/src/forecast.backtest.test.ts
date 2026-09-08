@@ -38,10 +38,12 @@ describe('Forecast — confidence tier boundaries match the documented threshold
     const series = buildFlatSeriesWithNoise(5, 100, 0.1, 1);
     expect(forecastMonthEnd(series, 5, 30).confidence).toBe('low');
   });
+
   test('7–14 days of history is "medium" confidence', () => {
     const series = buildFlatSeriesWithNoise(10, 100, 0.1, 1);
     expect(forecastMonthEnd(series, 10, 30).confidence).toBe('medium');
   });
+
   test('15+ days of history is "high" confidence', () => {
     const series = buildFlatSeriesWithNoise(20, 100, 0.1, 1);
     expect(forecastMonthEnd(series, 20, 30).confidence).toBe('high');
@@ -73,7 +75,7 @@ describe('Forecast — does "confidence" actually mean lower error?', () => {
   });
 });
 
-describe('Forecast — day-of-week seasonality (fixed: this backtest is what surfaced the original gap)', () => {
+describe('Forecast — day-of-week seasonality', () => {
   test('computeDayOfWeekMultipliers correctly detects a weekend-heavy pattern', () => {
     // 3 weeks of data: Fri/Sat/Sun cost 3x every other day.
     const series: DailyTotal[] = [];
@@ -102,32 +104,44 @@ describe('Forecast — day-of-week seasonality (fixed: this backtest is what sur
     return series;
   }
 
+  function total(series: DailyTotal[]): number {
+    return series.reduce((sum, day) => sum + day.amount, 0);
+  }
+
   test('without todayISO, forecastMonthEnd ignores the pattern — error is materially worse for a seasonal spender than a flat one', () => {
     const flatSeries = buildFlatSeriesWithNoise(12, 100, 0.05, 42);
     const flatResult = forecastMonthEnd(flatSeries, 12, 30);
-    const flatError = Math.abs(flatResult.projectedMonthEnd - 100 * 30) / (100 * 30);
+    const flatTrueMonthlyTotal = 100 * 30;
+    const flatError = Math.abs(flatResult.projectedMonthEnd - flatTrueMonthlyTotal) / flatTrueMonthlyTotal;
 
-    // First 12 days happen to be light (mostly weekdays), so a flat
-    // projection under-projects the weekend surges still to come.
-    const seasonalDaily = buildSeasonalSeries(12, new Date('2026-01-01T00:00:00')); // starts Thursday
+    // Generate the complete synthetic month first so the backtest ground truth
+    // is the actual total implied by the same seasonal data-generating process.
+    const start = new Date('2026-01-01T00:00:00'); // Thursday
+    const fullSeasonalMonth = buildSeasonalSeries(30, start);
+    const seasonalDaily = fullSeasonalMonth.slice(0, 12);
+    const trueMonthlyTotal = total(fullSeasonalMonth);
+
     const seasonalResult = forecastMonthEnd(seasonalDaily, 12, 30);
-    const trueMonthlyTotal = 100 * 30;
-    const seasonalErrorNoAwareness = Math.abs(seasonalResult.projectedMonthEnd - trueMonthlyTotal) / trueMonthlyTotal;
+    const seasonalErrorNoAwareness =
+      Math.abs(seasonalResult.projectedMonthEnd - trueMonthlyTotal) / trueMonthlyTotal;
 
     expect(seasonalErrorNoAwareness).toBeGreaterThan(flatError);
   });
 
   test('with todayISO supplied, the day-of-week-aware projection meaningfully closes that error gap', () => {
     const start = new Date('2026-01-01T00:00:00'); // Thursday
-    const seasonalDaily = buildSeasonalSeries(12, start);
+    const fullSeasonalMonth = buildSeasonalSeries(30, start);
+    const seasonalDaily = fullSeasonalMonth.slice(0, 12);
     const todayISO = seasonalDaily[seasonalDaily.length - 1].date; // 2026-01-12
+    const trueMonthlyTotal = total(fullSeasonalMonth);
 
-    const trueMonthlyTotal = 100 * 30;
     const withoutAwareness = forecastMonthEnd(seasonalDaily, 12, 30);
-    const withAwareness    = forecastMonthEnd(seasonalDaily, 12, 30, undefined, todayISO);
+    const withAwareness = forecastMonthEnd(seasonalDaily, 12, 30, undefined, todayISO);
 
-    const errorWithout = Math.abs(withoutAwareness.projectedMonthEnd - trueMonthlyTotal) / trueMonthlyTotal;
-    const errorWith    = Math.abs(withAwareness.projectedMonthEnd - trueMonthlyTotal) / trueMonthlyTotal;
+    const errorWithout =
+      Math.abs(withoutAwareness.projectedMonthEnd - trueMonthlyTotal) / trueMonthlyTotal;
+    const errorWith =
+      Math.abs(withAwareness.projectedMonthEnd - trueMonthlyTotal) / trueMonthlyTotal;
 
     expect(errorWith).toBeLessThan(errorWithout);
   });

@@ -10,28 +10,10 @@ import { supabase }       from '@/lib/supabase';
 import { useAuthStore }   from '@/store/authStore';
 import { useIncomeStore } from '@/store/incomeStore';
 import { useBudgetStore } from '@/store/budgetStore';
-import { Card, Button }   from '@/components/ui';
+import { Card, Button, EmptyState } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
-import { formatCurrency, generateUUID, generateIncomeBasedBudgets } from '@spendwise/shared';
+import { formatCurrency, generateUUID, generateIncomeBasedBudgets, INCOME_SOURCES } from '@spendwise/shared';
 import type { IncomeEntry, IncomeSource } from '@spendwise/shared';
-
-const SOURCE_LABELS: Record<IncomeSource, string> = {
-  salary:      'Salary',
-  freelance:   'Freelance',
-  business:    'Business',
-  investments: 'Investments',
-  allowance:   'Allowance',
-  other:       'Other',
-};
-
-const SOURCE_EMOJIS: Record<IncomeSource, string> = {
-  salary:      '💼',
-  freelance:   '💻',
-  business:    '🏪',
-  investments: '📈',
-  allowance:   '🎓',
-  other:       '💰',
-};
 
 const ALL_SOURCES: IncomeSource[] = ['salary', 'freelance', 'business', 'investments', 'allowance', 'other'];
 
@@ -235,7 +217,7 @@ export function IncomeScreen() {
         <View style={styles.sectionLabel}><Text style={styles.sectionTitle}>Primary Income</Text></View>
         <Card style={styles.primaryCard}>
           <View style={styles.sourceRow}>
-            <Text style={styles.sourceEmoji}>💼</Text>
+            <Text style={styles.sourceEmoji}>{INCOME_SOURCES.salary.emoji}</Text>
             <View style={styles.sourceInfo}>
               <Text style={styles.sourceName}>Monthly Salary / Base</Text>
               <Text style={styles.sourceDate}>Recurring · monthly</Text>
@@ -257,20 +239,18 @@ export function IncomeScreen() {
         </View>
 
         {entries.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>💸</Text>
-            <Text style={styles.emptyTitle}>No alternative income yet</Text>
-            <Text style={styles.emptySub}>Add freelance work, business revenue, investments and more</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => setShowModal(true)}>
-              <Text style={styles.emptyBtnText}>+ Add income source</Text>
-            </TouchableOpacity>
-          </Card>
+          <EmptyState
+            icon={<Ionicons name="cash-outline" size={28} color={Colors.primary} />}
+            title="No alternative income yet"
+            description="Add freelance work, business revenue, investments and more"
+            action={{ label: 'Add income source', onPress: () => setShowModal(true) }}
+          />
         ) : (
           Object.entries(bySource).map(([src, items]) => (
             <Card key={src} style={styles.sourceGroup}>
               <View style={styles.sourceGroupHeader}>
-                <Text style={styles.sourceEmoji}>{SOURCE_EMOJIS[src as IncomeSource]}</Text>
-                <Text style={styles.sourceGroupTitle}>{SOURCE_LABELS[src as IncomeSource]}</Text>
+                <Text style={styles.sourceEmoji}>{INCOME_SOURCES[src as IncomeSource].emoji}</Text>
+                <Text style={styles.sourceGroupTitle}>{INCOME_SOURCES[src as IncomeSource].label}</Text>
                 <Text style={styles.sourceGroupTotal}>
                   {formatCurrency(items.reduce((s, e) => s + e.amount, 0), currency)}
                 </Text>
@@ -278,7 +258,7 @@ export function IncomeScreen() {
               {items.map(e => (
                 <View key={e.id} style={styles.entryRow}>
                   <View style={styles.entryInfo}>
-                    <Text style={styles.entryName}>{e.sourceName ?? SOURCE_LABELS[e.source]}</Text>
+                    <Text style={styles.entryName}>{e.sourceName ?? INCOME_SOURCES[e.source].label}</Text>
                     <Text style={styles.entryDate}>
                       {e.date} {e.isRecurring ? '· recurring' : '· one-time'}
                     </Text>
@@ -322,9 +302,9 @@ export function IncomeScreen() {
                   style={[styles.sourceChip, source === s && styles.sourceChipActive]}
                   onPress={() => setSource(s)}
                 >
-                  <Text style={styles.sourceChipEmoji}>{SOURCE_EMOJIS[s]}</Text>
+                  <Text style={styles.sourceChipEmoji}>{INCOME_SOURCES[s].emoji}</Text>
                   <Text style={[styles.sourceChipLabel, source === s && styles.sourceChipLabelActive]}>
-                    {SOURCE_LABELS[s]}
+                    {INCOME_SOURCES[s].label}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -444,13 +424,6 @@ const styles = StyleSheet.create({
   entryDate:   { fontSize: Typography.xs, color: Colors.textSecondary },
   entryAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
   deleteBtn:   { padding: Spacing.xs },
-
-  emptyCard:  { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xl },
-  emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
-  emptySub:   { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center' },
-  emptyBtn:   { backgroundColor: Colors.primary, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.full, marginTop: Spacing.sm },
-  emptyBtnText: { color: '#fff', fontWeight: Typography.semibold },
 
   tipCard: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.accent + '12', borderWidth: 1, borderColor: Colors.accent + '30' },
   tipText: { flex: 1, fontSize: Typography.sm, color: Colors.text, lineHeight: 20 },

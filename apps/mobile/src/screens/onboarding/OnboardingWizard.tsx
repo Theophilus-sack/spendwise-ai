@@ -143,7 +143,7 @@ export function OnboardingWizard() {
         {/* ── Step 0: Currency & Income ── */}
         {step === 0 && (
           <StepWrapper
-            emoji="💰" title="Let's get started"
+            icon="wallet-outline" title="Let's get started"
             subtitle="Tell us about your finances so we can build a personalised plan."
           >
             <Label text="Your currency" />
@@ -176,7 +176,7 @@ export function OnboardingWizard() {
         {/* ── Step 1: Savings Goal ── */}
         {step === 1 && (
           <StepWrapper
-            emoji="🏦" title="How much do you want to save?"
+            icon="trending-up-outline" title="How much do you want to save?"
             subtitle="We'll build your starter budget around this — the rest of your income gets split across your everyday categories."
           >
             <ChipGrid>
@@ -200,7 +200,7 @@ export function OnboardingWizard() {
         {/* ── Step 2: Income Sources ── */}
         {step === 2 && (
           <StepWrapper
-            emoji="💼" title="Where does your money come from?"
+            icon="briefcase-outline" title="Where does your money come from?"
             subtitle="Select all that apply."
           >
             <ChipGrid>
@@ -219,7 +219,7 @@ export function OnboardingWizard() {
         {/* ── Step 3: Personality & Discipline ── */}
         {step === 3 && (
           <StepWrapper
-            emoji="🧠" title="How do you handle money?"
+            icon="options-outline" title="How do you handle money?"
             subtitle="Be honest — this shapes your AI recommendations."
           >
             <Label text="Spending personality" />
@@ -244,7 +244,7 @@ export function OnboardingWizard() {
         {/* ── Step 4: Financial Goals ── */}
         {step === 4 && (
           <StepWrapper
-            emoji="🎯" title="What are your financial goals?"
+            icon="flag-outline" title="What are your financial goals?"
             subtitle="Pick all that apply — we'll tailor your AI advisor to these."
           >
             <ChipGrid>
@@ -264,7 +264,7 @@ export function OnboardingWizard() {
         {/* ── Step 5: Spending Categories ── */}
         {step === 5 && (
           <StepWrapper
-            emoji="🛒" title="Your top spending areas?"
+            icon="cart-outline" title="Your top spending areas?"
             subtitle="These become your budget categories."
           >
             <ChipGrid>
@@ -283,7 +283,7 @@ export function OnboardingWizard() {
         {/* ── Step 6: Payment Methods ── */}
         {step === 6 && (
           <StepWrapper
-            emoji="💳" title="How do you usually pay?"
+            icon="card-outline" title="How do you usually pay?"
             subtitle="We'll use this to make logging faster."
           >
             <ChipGrid>
@@ -302,14 +302,21 @@ export function OnboardingWizard() {
         {/* ── Step 7: All done ── */}
         {step === 7 && (
           <StepWrapper
-            emoji="🎉" title="You're all set!"
+            icon="checkmark-circle-outline" title="You're all set!"
             subtitle="We've built your starter budget from your income and habits. Let's start tracking."
           >
             <View style={styles.doneCard}>
-              <Text style={styles.doneText}>✅ Starter budget created from your income</Text>
-              <Text style={styles.doneText}>✅ Your AI advisor is ready to chat</Text>
-              <Text style={styles.doneText}>✅ Financial Discipline Score will start tracking</Text>
-              <Text style={styles.doneText}>✅ Spending forecast ready once you log a few expenses</Text>
+              {[
+                'Starter budget created from your income',
+                'Your AI advisor is ready to chat',
+                'Financial Discipline Score will start tracking',
+                'Spending forecast ready once you log a few expenses',
+              ].map(line => (
+                <View key={line} style={styles.doneRow}>
+                  <Ionicons name="checkmark-circle" size={18} color={Colors.success} />
+                  <Text style={styles.doneText}>{line}</Text>
+                </View>
+              ))}
             </View>
           </StepWrapper>
         )}
@@ -319,7 +326,7 @@ export function OnboardingWizard() {
       {/* CTA */}
       <View style={styles.footer}>
         <Button
-          label={step === TOTAL_STEPS - 1 ? 'Launch SpendWise AI 🚀' : 'Continue'}
+          label={step === TOTAL_STEPS - 1 ? 'Launch SpendWise AI' : 'Continue'}
           onPress={step === TOTAL_STEPS - 1 ? handleFinish : () => setStep(s => s + 1)}
           disabled={!canProceed()}
           loading={loading}
@@ -338,12 +345,14 @@ export function OnboardingWizard() {
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function StepWrapper({ emoji, title, subtitle, children }: {
-  emoji: string; title: string; subtitle: string; children: React.ReactNode;
+function StepWrapper({ icon, title, subtitle, children }: {
+  icon: keyof typeof Ionicons.glyphMap; title: string; subtitle: string; children: React.ReactNode;
 }) {
   return (
     <View style={styles.stepWrapper}>
-      <Text style={styles.stepEmoji}>{emoji}</Text>
+      <View style={styles.stepIconBg}>
+        <Ionicons name={icon} size={32} color={Colors.primary} />
+      </View>
       <Text style={styles.stepTitle}>{title}</Text>
       <Text style={styles.stepSubtitle}>{subtitle}</Text>
       <View style={styles.stepContent}>{children}</View>
@@ -406,7 +415,7 @@ const styles = StyleSheet.create({
   skipText:    { textAlign: 'center', fontSize: Typography.sm, color: Colors.textTertiary, fontWeight: Typography.medium, paddingTop: Spacing.xs },
 
   stepWrapper:  { gap: Spacing.lg },
-  stepEmoji:    { fontSize: 52, textAlign: 'center' },
+  stepIconBg:   { width: 72, height: 72, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center', alignSelf: 'center' },
   stepTitle:    { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.text, textAlign: 'center' },
   stepSubtitle: { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center', lineHeight: 22 },
   stepContent:  { gap: Spacing.md },
@@ -428,5 +437,6 @@ const styles = StyleSheet.create({
   personalityDesc:         { fontSize: Typography.sm, color: Colors.textSecondary },
 
   doneCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, gap: Spacing.md, ...Shadows.sm },
-  doneText: { fontSize: Typography.base, color: Colors.text, fontWeight: Typography.medium },
+  doneRow:  { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  doneText: { flex: 1, fontSize: Typography.base, color: Colors.text, fontWeight: Typography.medium },
 });

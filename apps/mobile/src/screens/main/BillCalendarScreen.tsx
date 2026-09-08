@@ -6,6 +6,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/store/authStore';
 import { useDebtStore } from '@/store/debtStore';
+import { EmptyState } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
   formatCurrency, formatDate, daysUntilMonthlyDue, nextMonthlyDueDate, DEBT_TYPES,
@@ -123,14 +124,12 @@ export function BillCalendarScreen() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>🗓️</Text>
-            <Text style={styles.emptyTitle}>No upcoming bills</Text>
-            <Text style={styles.emptyText}>Add a due day to a loan or credit card in Debts & Loans and it'll show up here.</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={() => nav.navigate('Debts')}>
-              <Text style={styles.emptyBtnText}>Go to Debts & Loans</Text>
-            </TouchableOpacity>
-          </View>
+          <EmptyState
+            icon={<Ionicons name="calendar-outline" size={28} color={Colors.primary} />}
+            title="No upcoming bills"
+            description="Add a due day to a loan or credit card in Debts & Loans and it'll show up here."
+            action={{ label: 'Go to Debts & Loans', onPress: () => nav.navigate('Debts') }}
+          />
         }
       />
     </SafeAreaView>
@@ -170,10 +169,4 @@ const styles = StyleSheet.create({
   billAmount: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
   billAmountSub: { fontSize: 10, color: Colors.textTertiary, marginTop: 1 },
 
-  empty:      { alignItems: 'center', paddingTop: 80, gap: Spacing.md, paddingHorizontal: Spacing.xl },
-  emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
-  emptyText:  { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center' },
-  emptyBtn:   { marginTop: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.full, backgroundColor: Colors.primary },
-  emptyBtnText: { color: '#fff', fontWeight: Typography.semibold, fontSize: Typography.sm },
 });

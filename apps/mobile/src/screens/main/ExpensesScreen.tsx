@@ -17,6 +17,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useExpenseStore } from "@/store/expenseStore";
 import { useAuthStore } from "@/store/authStore";
+import { EmptyState } from "@/components/ui";
 import { Colors, Typography, Spacing, Radius, Shadows } from "@/theme";
 import {
   formatCurrency,
@@ -259,10 +260,10 @@ export function ExpensesScreen() {
           </TouchableOpacity>
         )}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>🔍</Text>
-            <Text style={styles.emptyText}>No expenses found</Text>
-          </View>
+          <EmptyState
+            icon={<Ionicons name="search-outline" size={28} color={Colors.primary} />}
+            title="No expenses found"
+          />
         }
       />
     </SafeAreaView>
@@ -444,7 +445,4 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   expMenuBtn: { padding: 2 },
-  empty: { alignItems: "center", paddingTop: 80, gap: Spacing.md },
-  emptyEmoji: { fontSize: 48 },
-  emptyText: { fontSize: Typography.base, color: Colors.textSecondary },
 });

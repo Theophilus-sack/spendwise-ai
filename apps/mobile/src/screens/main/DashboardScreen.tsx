@@ -14,11 +14,13 @@ import { useIncomeStore }  from '@/store/incomeStore';
 import { useWeeklyReflectionStore } from '@/store/weeklyReflectionStore';
 import { useDisciplineStore } from '@/store/disciplineStore';
 import { useNotificationStore } from '@/store/notificationStore';
-import { StatCard, Card, BudgetBar } from '@/components/ui';
+import { StatCard, Card, BudgetBar, EmptyState } from '@/components/ui';
+import { ConceptIcons } from '@/lib/iconMap';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
-  formatCurrency, formatCompact, formatDateShort, getCategoryEmoji, getCategoryLabel,
+  formatCurrency, formatCompact, formatDateShort, getCategoryEmoji, getCategoryLabel, INCOME_SOURCES,
 } from '@spendwise/shared';
+import type { IncomeSource } from '@spendwise/shared';
 import type { HomeTabNavProp } from '@/navigation/types';
 
 export function DashboardScreen() {
@@ -115,7 +117,7 @@ export function DashboardScreen() {
         {/* ── Header ── */}
         <View style={styles.header}>
           <View>
-            <Text style={styles.greeting}>{greeting()}, {firstName} 👋</Text>
+            <Text style={styles.greeting}>{greeting()}, {firstName}</Text>
             <Text style={styles.date}>{new Date().toLocaleDateString('en-GH', { weekday: 'long', day: 'numeric', month: 'long' })}</Text>
           </View>
           <View style={styles.headerActions}>
@@ -147,7 +149,12 @@ export function DashboardScreen() {
           <Text style={[styles.reflectionPillText, currentReflection && { color: Colors.success }]}>
             {currentReflection ? 'Reflected this week' : 'Weekly Reflection'}
           </Text>
-          {reflectionStreak > 0 && <Text style={styles.reflectionStreakText}>🔥 {reflectionStreak}</Text>}
+          {reflectionStreak > 0 && (
+            <>
+              <Ionicons name="flame" size={13} color={Colors.accentDark} />
+              <Text style={styles.reflectionStreakText}>{reflectionStreak}</Text>
+            </>
+          )}
         </TouchableOpacity>
 
         {/* ── Balance Hero Card ── */}
@@ -194,7 +201,7 @@ export function DashboardScreen() {
 
           {/* Primary income row */}
           <View style={styles.incomeRow}>
-            <View style={styles.incomeIcon}><Text style={{ fontSize: 16 }}>💼</Text></View>
+            <View style={styles.incomeIcon}><Text style={{ fontSize: 16 }}>{INCOME_SOURCES.salary.emoji}</Text></View>
             <View style={styles.incomeInfo}>
               <Text style={styles.incomeLabel}>Base Salary</Text>
               <Text style={styles.incomeSubLabel}>Primary · monthly</Text>
@@ -205,7 +212,7 @@ export function DashboardScreen() {
           {/* Alt income rows (up to 2) */}
           {entries.slice(0, 2).map(e => (
             <View key={e.id} style={styles.incomeRow}>
-              <View style={styles.incomeIcon}><Text style={{ fontSize: 16 }}>💸</Text></View>
+              <View style={styles.incomeIcon}><Text style={{ fontSize: 16 }}>{INCOME_SOURCES[e.source as IncomeSource]?.emoji ?? INCOME_SOURCES.other.emoji}</Text></View>
               <View style={styles.incomeInfo}>
                 <Text style={styles.incomeLabel}>{e.sourceName ?? e.source}</Text>
                 <Text style={styles.incomeSubLabel}>{e.isRecurring ? 'Recurring' : 'One-time'} · {e.date}</Text>
@@ -262,8 +269,8 @@ export function DashboardScreen() {
             {!hasBudgets
               ? 'Set up a budget to start tracking your spending health.'
               : budgetHealthOk
-              ? '✅ You\'re doing well — all budgets are on track this month!'
-              : `⚠️ ${overBudgetCount} budget${overBudgetCount > 1 ? 's' : ''} exceeded — review your spending to get back on track.`}
+              ? 'You\'re doing well — all budgets are on track this month'
+              : `${overBudgetCount} budget${overBudgetCount > 1 ? 's' : ''} exceeded — review your spending to get back on track.`}
           </Text>
         </Card>
 
@@ -273,7 +280,9 @@ export function DashboardScreen() {
             <LinearGradient colors={['#1A1A2E', '#2D1B69']} style={styles.coachGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
               <View style={styles.coachTop}>
                 <View style={styles.coachLeft}>
-                  <Text style={styles.coachEmoji}>🤖</Text>
+                  <View style={styles.coachIconBg}>
+                    <Ionicons name={ConceptIcons.ai} size={20} color="#fff" />
+                  </View>
                   <View>
                     <Text style={styles.coachTitle}>AI Coach Alert</Text>
                     <Text style={styles.coachSub}>You've exceeded {overBudgetCount} budget{overBudgetCount > 1 ? 's' : ''} this month</Text>
@@ -292,7 +301,7 @@ export function DashboardScreen() {
                   initialMessage: `I've exceeded my budget in ${overBudgetCount} categor${overBudgetCount > 1 ? 'ies' : 'y'} this month. Help me minimise costs and suggest more affordable alternatives I can switch to based on my location and budget.`,
                 })}
               >
-                <Text style={styles.coachBtnText}>Get cost-saving tips →</Text>
+                <Text style={styles.coachBtnText}>Get cost-saving tips</Text>
               </TouchableOpacity>
             </LinearGradient>
           </Animated.View>
@@ -326,7 +335,9 @@ export function DashboardScreen() {
           activeOpacity={0.85}
         >
           <View style={styles.insightLeft}>
-            <Text style={styles.insightEmoji}>🤖</Text>
+            <View style={styles.insightIconBg}>
+              <Ionicons name={ConceptIcons.ai} size={20} color={Colors.primary} />
+            </View>
             <View>
               <Text style={styles.insightTitle}>AI Insight</Text>
               <Text style={styles.insightBody} numberOfLines={2}>
@@ -357,7 +368,7 @@ export function DashboardScreen() {
               ))
             ) : (
               <Card>
-                <Text style={styles.allGoodText}>✅ All budgets on track this month!</Text>
+                <Text style={styles.allGoodText}>All budgets on track this month</Text>
               </Card>
             )}
           </Section>
@@ -370,7 +381,9 @@ export function DashboardScreen() {
           activeOpacity={0.85}
         >
           <View style={styles.forecastLeft}>
-            <Text style={styles.forecastEmoji}>📈</Text>
+            <View style={styles.forecastIconBg}>
+              <Ionicons name="trending-up-outline" size={22} color={Colors.primary} />
+            </View>
             <View>
               <Text style={styles.forecastTitle}>Spending Forecast</Text>
               <Text style={styles.forecastSub}>See where you'll end up this month</Text>
@@ -397,13 +410,11 @@ export function DashboardScreen() {
               </View>
             ))
           ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyEmoji}>📭</Text>
-              <Text style={styles.emptyText}>No expenses yet this month</Text>
-              <TouchableOpacity onPress={() => nav.navigate('AddExpense', {})}>
-                <Text style={styles.emptyAction}>Log your first expense →</Text>
-              </TouchableOpacity>
-            </View>
+            <EmptyState
+              icon={<Ionicons name="receipt-outline" size={28} color={Colors.primary} />}
+              title="No expenses yet this month"
+              action={{ label: 'Log your first expense', onPress: () => nav.navigate('AddExpense', {}) }}
+            />
           )}
         </Section>
 
@@ -522,7 +533,7 @@ const styles = StyleSheet.create({
   coachGradient: { padding: Spacing.base, gap: Spacing.sm },
   coachTop:      { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   coachLeft:     { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  coachEmoji:    { fontSize: 28 },
+  coachIconBg:   { width: 38, height: 38, borderRadius: Radius.full, backgroundColor: 'rgba(255,255,255,0.16)', alignItems: 'center', justifyContent: 'center' },
   coachTitle:    { fontSize: Typography.base, fontWeight: Typography.bold, color: '#fff' },
   coachSub:      { fontSize: Typography.xs, color: 'rgba(255,255,255,0.7)' },
   coachBody:     { fontSize: Typography.sm, color: 'rgba(255,255,255,0.85)', lineHeight: 20 },
@@ -533,7 +544,7 @@ const styles = StyleSheet.create({
 
   insightBanner: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primary + '10', borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.primary + '30', padding: Spacing.base, gap: Spacing.sm },
   insightLeft:   { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  insightEmoji:  { fontSize: 28 },
+  insightIconBg: { width: 38, height: 38, borderRadius: Radius.full, backgroundColor: Colors.primary + '18', alignItems: 'center', justifyContent: 'center' },
   insightTitle:  { fontSize: Typography.sm, fontWeight: Typography.bold, color: Colors.primary },
   insightBody:   { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: 2 },
 
@@ -547,7 +558,7 @@ const styles = StyleSheet.create({
 
   forecastCard:  { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.base, ...Shadows.sm },
   forecastLeft:  { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  forecastEmoji: { fontSize: 28 },
+  forecastIconBg:{ width: 38, height: 38, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
   forecastTitle: { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
   forecastSub:   { fontSize: Typography.xs, color: Colors.textSecondary, marginTop: 2 },
 
@@ -564,11 +575,6 @@ const styles = StyleSheet.create({
   txName:  { fontSize: Typography.base, fontWeight: Typography.medium, color: Colors.text },
   txDate:  { fontSize: Typography.xs, color: Colors.textSecondary },
   txAmount:{ fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
-
-  emptyState:  { alignItems: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
-  emptyEmoji:  { fontSize: 40 },
-  emptyText:   { fontSize: Typography.base, color: Colors.textSecondary },
-  emptyAction: { fontSize: Typography.base, color: Colors.primary, fontWeight: Typography.semibold },
 
   quickActions: { flexDirection: 'row', gap: Spacing.sm },
   quickBtn:     { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md, alignItems: 'center', gap: Spacing.xs, ...Shadows.sm },

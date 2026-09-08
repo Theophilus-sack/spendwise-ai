@@ -11,7 +11,7 @@ import { useAuthStore }    from '@/store/authStore';
 import { useExpenseStore } from '@/store/expenseStore';
 import { useBudgetStore }  from '@/store/budgetStore';
 import { useIncomeStore }  from '@/store/incomeStore';
-import { Card, BudgetBar, Button } from '@/components/ui';
+import { Card, BudgetBar, Button, EmptyState } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import {
   CATEGORY_LIST, getCategoryEmoji, getCategoryLabel, formatCurrency, generateUUID, getCustomCategories,
@@ -189,7 +189,7 @@ export function BudgetScreen() {
         {totalIncome > 0 && (
           <Text style={[styles.incomeContext, overAllocated && styles.incomeContextWarn]}>
             {overAllocated
-              ? `⚠️ Budgeted ${formatCurrency(totalBudget, currency)} — ${budgetedPct}% of your ${formatCurrency(totalIncome, currency)} income, more than you actually earn`
+              ? `Budgeted ${formatCurrency(totalBudget, currency)} — ${budgetedPct}% of your ${formatCurrency(totalIncome, currency)} income, more than you actually earn`
               : `${budgetedPct}% of your ${formatCurrency(totalIncome, currency)} monthly income is budgeted`}
           </Text>
         )}
@@ -222,11 +222,11 @@ export function BudgetScreen() {
         )}
         ListHeaderComponent={
           budgets.length === 0 ? (
-            <View style={styles.empty}>
-              <Text style={styles.emptyEmoji}>📋</Text>
-              <Text style={styles.emptyTitle}>No budgets yet</Text>
-              <Text style={styles.emptyText}>Set monthly spending limits for each category to track your discipline.</Text>
-            </View>
+            <EmptyState
+              icon={<Ionicons name="pie-chart-outline" size={28} color={Colors.primary} />}
+              title="No budgets yet"
+              description="Set monthly spending limits for each category to track your discipline."
+            />
           ) : null
         }
         ListFooterComponent={
@@ -236,7 +236,7 @@ export function BudgetScreen() {
               <Text style={styles.addBudgetText}>Add new budget category</Text>
             </TouchableOpacity>
           ) : (
-            <Text style={styles.allBudgetedText}>You've set a budget for every category 🎉</Text>
+            <Text style={styles.allBudgetedText}>You've set a budget for every category</Text>
           )
         }
       />
@@ -303,7 +303,7 @@ export function BudgetScreen() {
                     style={[styles.categoryChip, !useCustomCategory && newCategory === c && styles.categoryChipActive]}
                     onPress={() => { setNewCategory(c as ExpenseCategory); setUseCustomCategory(false); }}
                   >
-                    <Text style={styles.categoryChipEmoji}>✨</Text>
+                    <Ionicons name="pricetag-outline" size={18} color={Colors.textSecondary} />
                     <Text style={[styles.categoryChipLabel, !useCustomCategory && newCategory === c && styles.categoryChipLabelActive]}>
                       {c}
                     </Text>
@@ -313,7 +313,7 @@ export function BudgetScreen() {
                   style={[styles.categoryChip, useCustomCategory && styles.categoryChipActive]}
                   onPress={() => setUseCustomCategory(true)}
                 >
-                  <Text style={styles.categoryChipEmoji}>✏️</Text>
+                  <Ionicons name="create-outline" size={18} color={Colors.textSecondary} />
                   <Text style={[styles.categoryChipLabel, useCustomCategory && styles.categoryChipLabelActive]}>Custom</Text>
                 </TouchableOpacity>
               </View>
@@ -402,11 +402,6 @@ const styles = StyleSheet.create({
   catName:     { fontSize: Typography.base, fontWeight: Typography.semibold, color: Colors.text },
   catPeriod:   { fontSize: Typography.xs, color: Colors.textSecondary, textTransform: 'capitalize' },
   editBtn:     { padding: Spacing.sm },
-
-  empty:      { alignItems: 'center', paddingVertical: Spacing.xxxl, gap: Spacing.md },
-  emptyEmoji: { fontSize: 52 },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
-  emptyText:  { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: Spacing.xl },
 
   addBudgetBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.base, marginTop: Spacing.sm },
   addBudgetText:{ fontSize: Typography.base, color: Colors.primary, fontWeight: Typography.semibold },

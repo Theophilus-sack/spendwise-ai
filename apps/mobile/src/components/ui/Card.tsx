@@ -1,5 +1,5 @@
 import React from 'react';
-import { View, StyleSheet, StyleProp, ViewStyle } from 'react-native';
+import { View, StyleSheet, StyleProp, ViewStyle, AccessibilityRole } from 'react-native';
 import { Colors, Radius, Spacing, Shadows } from '@/theme';
 
 interface CardProps {
@@ -7,11 +7,22 @@ interface CardProps {
   style?: StyleProp<ViewStyle>;
   padding?: number;
   shadow?: keyof typeof Shadows;
+  accessible?: boolean;
+  accessibilityLabel?: string;
+  accessibilityRole?: AccessibilityRole;
 }
 
-export function Card({ children, style, padding = Spacing.base, shadow = 'sm' }: CardProps) {
+export function Card({
+  children, style, padding = Spacing.base, shadow = 'sm',
+  accessible, accessibilityLabel, accessibilityRole,
+}: CardProps) {
   return (
-    <View style={[styles.card, { padding }, Shadows[shadow], style]}>
+    <View
+      style={[styles.card, { padding }, Shadows[shadow], style]}
+      accessible={accessible}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityRole={accessibilityRole}
+    >
       {children}
     </View>
   );

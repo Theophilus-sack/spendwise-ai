@@ -1,17 +1,19 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuthStore } from '@/store/authStore';
 import { useNotificationStore } from '@/store/notificationStore';
 import type { NotificationItem } from '@/store/notificationStore';
+import { EmptyState } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius } from '@/theme';
 import { formatRelativeTime } from '@spendwise/shared';
 
-const TYPE_EMOJI: Record<string, string> = {
-  budget_alert:   '📊',
-  anomaly:        '⚠️',
-  weekly_digest:  '🏆',
-  debt_reminder:  '📉',
+const TYPE_ICON: Record<string, keyof typeof Ionicons.glyphMap> = {
+  budget_alert:  'stats-chart-outline',
+  anomaly:       'warning-outline',
+  weekly_digest: 'trophy-outline',
+  debt_reminder: 'trending-down-outline',
 };
 
 export function NotificationsScreen() {
@@ -35,11 +37,11 @@ export function NotificationsScreen() {
         keyExtractor={n => n.id}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyEmoji}>🔔</Text>
-            <Text style={styles.emptyTitle}>No notifications yet</Text>
-            <Text style={styles.emptyText}>Budget alerts, unusual spending, your weekly score, and debt reminders will show up here.</Text>
-          </View>
+          <EmptyState
+            icon={<Ionicons name="notifications-outline" size={28} color={Colors.primary} />}
+            title="No notifications yet"
+            description="Budget alerts, unusual spending, your weekly score, and debt reminders will show up here."
+          />
         }
         renderItem={({ item }) => <NotificationRow item={item} onPress={() => !item.readAt && markRead(item.id)} />}
       />
@@ -51,7 +53,9 @@ function NotificationRow({ item, onPress }: { item: NotificationItem; onPress: (
   const isUnread = !item.readAt;
   return (
     <TouchableOpacity style={[styles.row, isUnread && styles.rowUnread]} onPress={onPress} activeOpacity={0.7}>
-      <Text style={styles.emoji}>{TYPE_EMOJI[item.type] ?? '🔔'}</Text>
+      <View style={styles.iconBg}>
+        <Ionicons name={TYPE_ICON[item.type] ?? 'notifications-outline'} size={18} color={Colors.primary} />
+      </View>
       <View style={styles.info}>
         <Text style={[styles.title, isUnread && styles.titleUnread]}>{item.title}</Text>
         <Text style={styles.body}>{item.body}</Text>
@@ -67,14 +71,9 @@ const styles = StyleSheet.create({
   centered: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   list:     { padding: Spacing.base, gap: Spacing.sm, paddingBottom: 80, flexGrow: 1 },
 
-  empty:      { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, paddingVertical: Spacing.xxxl, paddingHorizontal: Spacing.xl },
-  emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
-  emptyText:  { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center' },
-
   row:       { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.base, borderWidth: 1, borderColor: Colors.border },
   rowUnread: { borderColor: Colors.primary + '40', backgroundColor: Colors.primary + '06' },
-  emoji:     { fontSize: 22 },
+  iconBg:    { width: 36, height: 36, borderRadius: Radius.full, backgroundColor: Colors.primary + '12', alignItems: 'center', justifyContent: 'center' },
   info:      { flex: 1, gap: 2 },
   title:     { fontSize: Typography.base, fontWeight: Typography.medium, color: Colors.text },
   titleUnread: { fontWeight: Typography.bold },

@@ -20,12 +20,13 @@ interface ButtonProps {
   style?: ViewStyle;
   textStyle?: TextStyle;
   haptic?: boolean;
+  accessibilityLabel?: string;
 }
 
 export function Button({
   label, onPress, variant = 'primary', size = 'md',
   loading = false, disabled = false, fullWidth = false,
-  style, textStyle, haptic = true,
+  style, textStyle, haptic = true, accessibilityLabel,
 }: ButtonProps) {
   const handlePress = async () => {
     if (haptic) await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -39,6 +40,9 @@ export function Button({
       onPress={handlePress}
       disabled={isDisabled}
       activeOpacity={0.8}
+      accessibilityRole="button"
+      accessibilityLabel={accessibilityLabel ?? label}
+      accessibilityState={{ disabled: isDisabled, busy: loading }}
       style={[
         styles.base,
         styles[variant],

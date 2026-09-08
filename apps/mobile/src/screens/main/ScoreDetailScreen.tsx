@@ -1,7 +1,8 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Card, ScoreRing, Button } from '@/components/ui';
+import { Ionicons } from '@expo/vector-icons';
+import { Card, ScoreRing, EmptyState } from '@/components/ui';
 import { Colors, Typography, Spacing } from '@/theme';
 import { FDS_WEIGHTS } from '@spendwise/shared';
 import { useAuthStore } from '@/store/authStore';
@@ -37,14 +38,14 @@ export function ScoreDetailScreen() {
     return (
       <SafeAreaView style={styles.safe}>
         <View style={styles.centered}>
-          <Text style={styles.emptyEmoji}>📊</Text>
-          <Text style={styles.heroTitle}>No score yet</Text>
-          <Text style={styles.heroSub}>
-            {error
+          <EmptyState
+            icon={<Ionicons name="shield-outline" size={28} color={Colors.primary} />}
+            title="No score yet"
+            description={error
               ? "We couldn't load your discipline score right now."
               : 'Log a few expenses and set up a budget this week — your score builds from there.'}
-          </Text>
-          {user && <Button label="Try again" variant="outline" onPress={() => load(user.id)} style={styles.retryBtn} />}
+            action={user ? { label: 'Try again', onPress: () => load(user.id) } : undefined}
+          />
         </View>
       </SafeAreaView>
     );
@@ -92,8 +93,6 @@ const styles = StyleSheet.create({
   content: { padding: Spacing.base, gap: Spacing.base, alignItems: 'stretch' },
   centered:{ flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.sm, padding: Spacing.xl },
   loadingText: { fontSize: Typography.sm, color: Colors.textSecondary, marginTop: Spacing.sm },
-  emptyEmoji:  { fontSize: 40, marginBottom: Spacing.xs },
-  retryBtn:    { marginTop: Spacing.md },
   hero:    { alignItems: 'center', gap: Spacing.md, paddingVertical: Spacing.lg },
   heroTitle: { fontSize: Typography.xl, fontWeight: Typography.bold, color: Colors.text, textAlign: 'center' },
   heroSub:   { fontSize: Typography.base, color: Colors.textSecondary, textAlign: 'center' },

@@ -8,7 +8,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { LinearGradient } from 'expo-linear-gradient';
 import { useAuthStore } from '@/store/authStore';
 import { useDebtStore } from '@/store/debtStore';
-import { Card, Button } from '@/components/ui';
+import { Card, Button, EmptyState } from '@/components/ui';
 import { Colors, Typography, Spacing, Radius, Shadows } from '@/theme';
 import { formatCurrency, DEBT_TYPES, generateUUID } from '@spendwise/shared';
 import type { Debt, DebtType } from '@spendwise/shared';
@@ -172,14 +172,12 @@ export function DebtsScreen() {
         </View>
 
         {sortedActive.length === 0 ? (
-          <Card style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>📉</Text>
-            <Text style={styles.emptyTitle}>Nothing tracked yet</Text>
-            <Text style={styles.emptySub}>Add a loan, credit card, or money you owe (or are owed) to keep track of repayment.</Text>
-            <TouchableOpacity style={styles.emptyBtn} onPress={openAdd}>
-              <Text style={styles.emptyBtnText}>+ Add a debt</Text>
-            </TouchableOpacity>
-          </Card>
+          <EmptyState
+            icon={<Ionicons name="card-outline" size={28} color={Colors.primary} />}
+            title="Nothing tracked yet"
+            description="Add a loan, credit card, or money you owe (or are owed) to keep track of repayment."
+            action={{ label: 'Add a debt', onPress: openAdd }}
+          />
         ) : (
           sortedActive.map(d => {
             const paidOffPct = d.principalAmount > 0
@@ -235,7 +233,7 @@ export function DebtsScreen() {
         {paidDebts.length > 0 && (
           <>
             <View style={styles.sectionHeader}>
-              <Text style={styles.sectionTitle}>Paid Off 🎉</Text>
+              <Text style={styles.sectionTitle}>Paid Off</Text>
             </View>
             {paidDebts.map(d => (
               <Card key={d.id} style={styles.paidCard}>
@@ -351,12 +349,6 @@ const styles = StyleSheet.create({
   addBtn:        { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.primary, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.full },
   addBtnText:    { color: '#fff', fontSize: Typography.sm, fontWeight: Typography.semibold },
 
-  emptyCard:  { alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xl },
-  emptyEmoji: { fontSize: 48 },
-  emptyTitle: { fontSize: Typography.lg, fontWeight: Typography.bold, color: Colors.text },
-  emptySub:   { fontSize: Typography.sm, color: Colors.textSecondary, textAlign: 'center' },
-  emptyBtn:   { backgroundColor: Colors.primary, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, borderRadius: Radius.full, marginTop: Spacing.sm },
-  emptyBtnText: { color: '#fff', fontWeight: Typography.semibold },
 
   debtCard:   { gap: Spacing.sm },
   debtHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

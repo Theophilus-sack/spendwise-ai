@@ -35,8 +35,18 @@ export function BudgetBar({
     width: `${widthPct.value}%`,
   }));
 
+  const a11yLabel = isOver
+    ? `${formatCurrency(spent - limit, currency)} over budget of ${formatCurrency(limit, currency)}`
+    : `${percentage.toFixed(0)} percent of ${formatCurrency(limit, currency)} budget used, ${formatCurrency(limit - spent, currency)} remaining`;
+
   return (
-    <View style={styles.container}>
+    <View
+      style={styles.container}
+      accessible
+      accessibilityRole="progressbar"
+      accessibilityLabel={a11yLabel}
+      accessibilityValue={{ min: 0, max: 100, now: Math.round(percentage) }}
+    >
       {showAmounts && (
         <View style={styles.amounts}>
           <Text style={styles.spent}>

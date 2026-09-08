@@ -36,7 +36,12 @@ export function ScoreRing({
   }));
 
   return (
-    <View style={[styles.container, { width: size, height: size }]}>
+    <View
+      style={[styles.container, { width: size, height: size }]}
+      accessible
+      accessibilityRole="text"
+      accessibilityLabel={`Discipline score ${score.toFixed(0)} out of 100, grade ${grade}`}
+    >
       <Svg width={size} height={size}>
         {/* Track */}
         <Circle
